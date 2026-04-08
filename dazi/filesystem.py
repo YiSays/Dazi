@@ -23,7 +23,7 @@ from dazi.base import DaziTool, ToolSafety
 
 
 class FileReaderInput(BaseModel):
-    file_path: str = Field(description="Absolute path to the file to read")
+    file_path: str = Field(description="Absolute path to the file to read. Always read a file before editing it.")
     offset: int = Field(
         default=0, description="Line number to start reading from (0-indexed)"
     )
@@ -62,7 +62,7 @@ def file_reader(file_path: str, offset: int = 0, limit: int = 2000) -> str:
 file_reader_tool = StructuredTool.from_function(
     func=file_reader,
     name="file_reader",
-    description="Read a file from disk. Returns content with line numbers.",
+    description="Read a file from disk. Returns content with line numbers. ALWAYS read a file before editing it — never edit blindly.",
     args_schema=FileReaderInput,
 )
 
@@ -121,6 +121,7 @@ shell_exec_tool = StructuredTool.from_function(
         """\
         Execute a shell command and return its output.
         Use for running CLI tools, listing files, running tests, etc.
+        For partial file edits, prefer: sed -i '' 's/old/new/' file
         WARNING: In plan mode, only use for read-only exploration commands."""
     ).strip(),
     args_schema=ShellExecInput,
@@ -221,7 +222,7 @@ calculator_meta = DaziTool(
 
 class FileWriterInput(BaseModel):
     file_path: str = Field(description="Absolute path to the file to write")
-    content: str = Field(description="The content to write to the file")
+    content: str = Field(description="The COMPLETE file content to write. This replaces the entire file — include ALL lines, not just changed ones.")
 
     @field_validator("file_path")
     @classmethod
@@ -250,12 +251,29 @@ def file_writer(file_path: str, content: str) -> str:
 file_writer_tool = StructuredTool.from_function(
     func=file_writer,
     name="file_writer",
-    description="Write content to a file. Creates parent directories if needed. Overwrites existing files. WARNING: This OVERWRITES the entire file. Do NOT use for partial edits - use shell_exec with sed/awk instead. Only use for creating new files or completely replacing files when you have the FULL content.",
+    description=dedent(
+        """\
+        CRITICAL: This tool OVERWRITES the entire file with the provided content.
+        Any existing content not included in your `content` parameter will be permanently lost.
+
+        WHEN TO USE:
+        - Creating a brand new file
+        - Completely replacing a file when you have the FULL updated content
+
+        WHEN NOT TO USE:
+        - Changing only a few lines → use shell_exec with sed instead
+        - Fixing a single function → use shell_exec with sed instead
+        - Appending to a file → use shell_exec with 'echo >> file' instead
+
+        If you need to modify part of an existing file: read it first with file_reader,
+        construct the full updated content in your response, then write it.
+        Never provide only the changed portion."""
+    ).strip(),
     args_schema=FileWriterInput,
 )
 
 file_writer_meta = DaziTool(
     name="file_writer",
-    description="Write content to a file. NOT available in plan mode.",
+    description="Create new files or fully replace existing files. OVERWRITES entirely — not for partial edits.",
     safety=ToolSafety.WRITE,
 )

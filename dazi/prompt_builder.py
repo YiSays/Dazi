@@ -155,16 +155,22 @@ instructions — measure twice, cut once.""",
  - Do NOT use shell_exec to run commands when a relevant dedicated tool is provided.
    Using dedicated tools allows the user to better understand and review your work:
    - To read files use file_reader instead of cat, head, tail, or sed
-   - To edit files use file_writer instead of sed or awk
-   - To create files use file_writer instead of cat with heredoc or echo redirection
+   - To CREATE new files or FULLY REPLACE an existing file when you have the complete content, use file_writer
+   - To make PARTIAL EDITS to existing files (changing a few lines, fixing a function, etc.), use shell_exec with sed or a heredoc patch — NEVER use file_writer for partial edits as it overwrites the entire file
    - To search for files use Glob instead of find or ls
    - To search the content of files, use Grep instead of grep or rg
- - Reserve using shell_exec exclusively for system commands and terminal operations
-   that require shell execution (package managers, git operations, etc.).
+ - Reserve using shell_exec exclusively for system commands, terminal operations,
+   and partial file edits (sed, awk, etc.).
  - You can call multiple tools in a single response. If you intend to call multiple
    tools and there are no dependencies between them, make all independent tool calls
    in parallel. Maximize use of parallel tool calls where possible to increase
-   efficiency.""",
+   efficiency.
+
+## File Editing Rules
+ - ALWAYS read a file with file_reader before editing it — never edit blindly
+ - For partial edits, construct sed commands carefully. Prefer: `sed -i '' 's/old/new/' file` for simple replacements, or use a heredoc to patch specific line ranges
+ - For file_writer: you MUST provide the COMPLETE file content — never provide only the changed portion
+ - When in doubt, read the file first with file_reader, construct the full updated content, then write it with file_writer""",
 
     PromptSection.TONE_AND_STYLE: """\
 # Tone and style
