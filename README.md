@@ -1,11 +1,11 @@
-# Dazi — Develop Autonomously, Zero Interruption
+# DAZI — Develop Autonomously, Zero Interruption
 
-Dazi is a terminal-based AI coding assistant that runs in your shell. It reads your codebase, plans changes, writes and edits files, runs commands, and manages multi-agent teams — all from a single REPL.
+DAZI is a terminal-based AI coding assistant that runs in your shell. It reads your codebase, plans changes, writes and edits files, runs commands, and manages multi-agent teams — all from a single REPL.
 
 ```
 $ dazi
 ╭──────────────────────────────────────────╮
-│  Dazi — Develop Autonomously, Zero       │
+│  DAZI — Develop Autonomously, Zero       │
 │          Interruption                    │
 │  Model: gpt-4o  |  Mode: execute        │
 │  DAZI.md: 2 file(s) loaded              │
@@ -32,7 +32,7 @@ uv run python -m dazi
 
 ## Architecture
 
-Dazi is built on a LangGraph state machine with this core loop:
+DAZI is built on a LangGraph state machine with this core loop:
 
 ```
 User Input → Check Compact → Call LLM → Check Permissions → Execute Tools → Output
@@ -367,7 +367,7 @@ Store important context that persists across conversations. Memories are automat
 
 # In a future session:
 > How should I install dependencies?
-# Dazi knows to use `uv` because of the stored memory
+# DAZI knows to use `uv` because of the stored memory
 ```
 
 **Memory types:**
@@ -389,7 +389,7 @@ Memories are stored as individual `.md` files in the memory directory with YAML 
 
 <!-- GIF placeholder: compact.gif — Shows token usage growing, auto-compact triggering, and conversation continuing seamlessly -->
 
-Conversations can grow beyond the context window. Dazi automatically compresses old messages when approaching the limit, keeping recent context intact.
+Conversations can grow beyond the context window. DAZI automatically compresses old messages when approaching the limit, keeping recent context intact.
 
 **Two compaction strategies:**
 - **Micro-compact:** Replace old tool results with compact markers (fast, no LLM call)
@@ -414,11 +414,11 @@ A circuit breaker stops compaction after 3 consecutive failures to prevent loops
 
 <!-- GIF placeholder: proactive.gif — Shows /proactive on, agent working autonomously with tick messages, and pause/resume -->
 
-Enable autonomous operation where Dazi stays active between your inputs, monitoring background tasks and taking initiative.
+Enable autonomous operation where DAZI stays active between your inputs, monitoring background tasks and taking initiative.
 
 ```bash
 > /proactive on
-# Dazi is now active — it will monitor and act autonomously
+# DAZI is now active — it will monitor and act autonomously
 
 # Ctrl+C to pause, type anything to resume
 
@@ -429,7 +429,7 @@ Enable autonomous operation where Dazi stays active between your inputs, monitor
 
 <!-- GIF placeholder: dazimd.gif — Shows DAZI.md file being loaded, its content displayed, and instructions affecting agent behavior -->
 
-DAZI.md files provide project-specific instructions that shape Dazi's behavior. They're loaded hierarchically and injected into the system prompt.
+DAZI.md files provide project-specific instructions that shape DAZI's behavior. They're loaded hierarchically and injected into the system prompt.
 
 **Loading priority (highest to lowest):**
 1. `DAZI.local.md` — project root, gitignored (private per-project)
@@ -499,7 +499,7 @@ DAZI.md supports `@include` directives for composing from multiple files:
 | `/worktree finish <name>` | Finish worktree |
 | `/reload` | Reload settings and DAZI.md |
 | `/clear` | Reset conversation |
-| `/quit` | Exit Dazi |
+| `/quit` | Exit DAZI |
 
 ## Environment Variables
 
@@ -540,78 +540,3 @@ Settings are stored in JSON with three layers:
   }
 }
 ```
-
----
-
-## Preparing Demo GIFs
-
-Each component section above has a `<!-- GIF placeholder -->` comment marking where a demo GIF should go. Here's how to prepare them:
-
-### Recommended Workflow
-
-1. **Record with terminal emulators** that support GIF export:
-   - **macOS:** Use [ttygif](https://github.com/icholy/ttygif) + [ttyrec](https://opensource.apple.com/source/telnet/telnet-13/telnet/ttyrec.h)
-     ```bash
-     # Record terminal session
-     ttyrec my-recording
-
-     # Convert to GIF
-     ttygif my-recording -o plan-mode.gif
-     ```
-   - Or use **macOS Screen Recording** (Cmd+Shift+5) then convert with `ffmpeg`:
-     ```bash
-     ffmpeg -i recording.mov -vf "fps=15,scale=800:-1:flags=lanczos" -loop 0 plan-mode.gif
-     ```
-   - **Alternative:** [asciinema](https://asciinema.org) for recording, then [agg](https://github.com/asciinema/agg) for GIF conversion:
-     ```bash
-     asciinema rec plan-mode.cast
-     agg --theme monokai --font-size 14 plan-mode.cast plan-mode.gif
-     ```
-
-2. **Keep GIFs small:**
-   - Target **5–15 seconds**, max 30 seconds
-   - Use a **narrow terminal** (80–100 columns, ~20 rows) — this renders well on GitHub
-   - Aim for **under 2MB** per GIF for fast loading
-   - Use `gifsicle` to optimize:
-     ```bash
-     gifsicle -O3 --colors 128 -o plan-mode.gif plan-mode-raw.gif
-     ```
-
-3. **File naming and placement:**
-   - Store GIFs in `docs/gifs/` directory
-   - Name to match the placeholder: `plan-mode.gif`, `tasks.gif`, `rules.gif`, etc.
-   - Replace the `<!-- GIF placeholder -->` comments with:
-     ```markdown
-     ![Plan Mode demo](docs/gifs/plan-mode.gif)
-     ```
-
-### GIF Checklist
-
-Prepare one GIF per component. For each, focus on the **core user action** — show the command being typed and the result:
-
-| GIF File | What to Show | Duration Target |
-|----------|-------------|-----------------|
-| `plan-mode.gif` | Type `/plan`, explore codebase read-only, type `/go` | 10–15s |
-| `tasks.gif` | Create tasks, set dependencies, `/tasks` board, complete | 10–15s |
-| `rules.gif` | `/allow`, `/deny`, `/rules` listing, permission prompt in action | 8–12s |
-| `cost.gif` | `/cost` showing per-model breakdown and totals | 5–8s |
-| `background.gif` | Start long command in background, continue work, check result | 10–15s |
-| `settings.gif` | `/settings` with source annotations, edit file, `/reload` | 8–12s |
-| `mcp.gif` | `/mcp` listing, connect server, use MCP tool | 10–15s |
-| `skills.gif` | `/skills` listing, invoke `/commit`, show generated result | 8–12s |
-| `teams.gif` | `/team create`, spawn teammates, task assignment, coordinated work | 15–20s |
-| `subagents.gif` | `delegate_task`, agent working, returning summary | 10–15s |
-| `worktree.gif` | Create worktree, parallel agent work, finish worktree | 10–15s |
-| `memory.gif` | `/remember`, `/memories`, new session auto-injecting memory | 10–12s |
-| `compact.gif` | `/tokens` showing high usage, `/compact`, conversation continues | 8–12s |
-| `proactive.gif` | `/proactive on`, agent acting autonomously, pause/resume | 10–15s |
-| `dazimd.gif` | Show DAZI.md file, `/dazimd` loading it, behavior affected | 8–10s |
-
-### Tips for Clean Recordings
-
-- Use a **dark terminal theme** with good contrast (e.g., Monokai, Dracula)
-- Set font size to **14–16pt** so text is readable at reduced GIF dimensions
-- Disable terminal prompts or set `PS1="$ "` for minimal distraction
-- Type commands deliberately — use `pv -qL 30` to replay typed input at readable speed
-- Remove any API keys or sensitive data before recording
-- Trim leading/trailing silence with `gifsicle -U input.gif -o output.gif`
