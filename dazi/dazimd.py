@@ -61,6 +61,7 @@ INCLUDE_PATTERN = re.compile(r"^@include\s+(.+)$", re.MULTILINE)
 def discover_dazimd_files(
     project_root: Path | None = None,
     cwd: Path | None = None,
+    global_md_path: Path | None = None,
 ) -> list[DaziMdFile]:
     """Discover DAZI.md files by priority chain.
 
@@ -72,6 +73,7 @@ def discover_dazimd_files(
     Args:
         project_root: Project root directory. Defaults to cwd.
         cwd: Current working directory. Defaults to Path.cwd().
+        global_md_path: Override for ~/.dazi/DAZI.md path. Defaults to Path.home().
 
     Returns:
         List of DaziMdFile objects sorted by priority (highest first).
@@ -102,7 +104,7 @@ def discover_dazimd_files(
     _try_load(root / "DAZI.md", PRIORITY_PROJECT)
 
     # 3. ~/.dazi/DAZI.md — user global (lowest priority)
-    global_md = Path.home() / ".dazi" / "DAZI.md"
+    global_md = global_md_path or Path.home() / ".dazi" / "DAZI.md"
     _try_load(global_md, PRIORITY_GLOBAL)
 
     # Sort by priority descending (highest first)

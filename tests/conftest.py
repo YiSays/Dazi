@@ -22,6 +22,36 @@ from dazi.team import TeamManager
 from dazi.teammate import TeammateRunner
 
 # ─────────────────────────────────────────────────────────
+# ISOLATION GUARDS (autouse — run for every test)
+# ─────────────────────────────────────────────────────────
+
+
+@pytest.fixture(autouse=True)
+def _isolate_home_dir(tmp_path: Path, monkeypatch):
+    """Prevent ALL tests from accessing real Path.home().
+
+    Patches Path.home() to return a fake directory under tmp_path.
+    Per-test monkeypatch.setattr calls override this since monkeypatch
+    is per-test scoped and later patches take precedence.
+    """
+    fake_home = tmp_path / "fake_home"
+    fake_home.mkdir()
+    monkeypatch.setattr("pathlib.Path.home", lambda *args, **kwargs: fake_home)
+
+
+@pytest.fixture(autouse=True)
+def _patch_singletons_guard(monkeypatch, tmp_path: Path):
+    """Ensure all tests use isolated singletons as a safety net.
+
+    Per-file autouse fixtures that call patch_singletons will override
+    these patches since they run after conftest fixtures.
+    """
+    from tests.helpers.mock_singletons import patch_singletons
+
+    patch_singletons(monkeypatch, tmp_path)
+
+
+# ─────────────────────────────────────────────────────────
 # DIRECTORY FIXTURES
 # ─────────────────────────────────────────────────────────
 
@@ -30,7 +60,7 @@ from dazi.teammate import TeammateRunner
 def tmp_data_dir(tmp_path: Path) -> Path:
     """Create a temporary .dazi-style data directory."""
     d = tmp_path / ".dazi"
-    d.mkdir()
+    d.mkdir(exist_ok=True)
     return d
 
 
@@ -69,7 +99,7 @@ def mock_memory_store(tmp_path: Path) -> MemoryStore:
 
 @pytest.fixture
 def mock_settings_manager(tmp_path: Path) -> SettingsManager:
-    return SettingsManager(project_root=tmp_path)
+    return SettingsManager(project_root=tmp_path, user_dir=tmp_path / "user_home" / ".dazi")
 
 
 @pytest.fixture

@@ -7,6 +7,7 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.table import Table
+from rich.text import Text
 
 import dazi.graph as _graph_mod
 from dazi._singletons import (
@@ -421,7 +422,9 @@ def show_mcp_server_detail(server_name: str) -> None:
         tool_table.add_column("Description", max_width=60)
         for t in conn.tools:
             ro = "[green]yes[/green]" if t.is_read_only else "[dim]no[/dim]"
-            desc = t.description[:60] + "..." if len(t.description) > 60 else t.description
+            desc = (
+                t.description[:60] + "..." if len(t.description) > 60 else t.description
+            )
             tool_table.add_row(t.qualified_name, t.name, ro, desc)
         console.print(tool_table)
     elif conn.status == MCPServerStatus.CONNECTED:
@@ -460,9 +463,7 @@ def show_skills_table() -> None:
         source = (
             "bundled"
             if s.is_bundled
-            else str(s.source_path.parent.name)
-            if s.source_path
-            else "unknown"
+            else str(s.source_path.parent.name) if s.source_path else "unknown"
         )
         invocable = "[green]yes[/green]" if s.user_invocable else "[dim]no[/dim]"
         desc = s.description[:50] + "..." if len(s.description) > 50 else s.description
@@ -499,9 +500,7 @@ def show_skill_detail(skill_name: str) -> None:
     source = (
         "bundled"
         if skill.is_bundled
-        else str(skill.source_path)
-        if skill.source_path
-        else "unknown"
+        else str(skill.source_path) if skill.source_path else "unknown"
     )
     lines.append(f"Source: {source}")
 
@@ -557,18 +556,43 @@ def render_dazi_panel(text: str, console: Console) -> None:
     )
 
 
+def render_thinking_panel(text: str, console: Console) -> None:
+    """Render AI thinking/reasoning as a dim panel.
+
+    Display is truncated at 500 chars for readability.
+    Full text is preserved in AIMessage.additional_kwargs for API round-trips.
+    """
+    from dazi.theme import BORDER, RICH
+
+    display = text[:500] + "\n..." if len(text) > 500 else text
+
+    console.print(
+        Panel(
+            Text(display, style="dim"),
+            title=f"[{RICH['dim']}]THINKING[/{RICH['dim']}]",
+            # title_align="left",
+            border_style=BORDER["dim"],
+            padding=(0, 1),
+        )
+    )
+
+
 # ─────────────────────────────────────────────────────────
 # HOOKS (demo)
 # ─────────────────────────────────────────────────────────
 
 
 def add_demo_hook() -> None:
-    async def logging_hook(tool_name: str = "", tool_args: dict = None, **kwargs) -> HookResult:
+    async def logging_hook(
+        tool_name: str = "", tool_args: dict | None = None, **kwargs
+    ) -> HookResult:
         args_display = str(tool_args or {})[:100]
         console.print(f"  [dim][hook] pre_tool_use: {tool_name}({args_display})[/dim]")
         return HookResult()
 
-    _graph_mod.hook_registry.register(HookEvent.PRE_TOOL_USE, logging_hook, priority=100)
+    _graph_mod.hook_registry.register(
+        HookEvent.PRE_TOOL_USE, logging_hook, priority=100
+    )
     console.print("[green]Registered logging hook (priority=100).[/green]")
 
 
@@ -588,6 +612,7 @@ def print_ascii_banner(console: Console, *, version: str) -> None:
         "██║  ██║ ██╔══██║  ███╔╝     ██║",
         "██████╔╝ ██║  ██║ ███████╗ ██████╗",
         "╚═════╝  ╚═╝  ╚═╝ ╚══════╝ ╚═════╝",
+        "https://github.com/YiSays/DAZI",
     ]
 
     now = datetime.now()
@@ -623,7 +648,9 @@ def print_ascii_banner(console: Console, *, version: str) -> None:
     inner.add_column(ratio=1)
     inner.add_column(ratio=1)
     inner.add_row(
-        Align.center("[bold cyan]" + "\n".join(block_lines) + "[/bold cyan]", vertical="middle"),
+        Align.center(
+            "[bold cyan]" + "\n".join(block_lines) + "[/bold cyan]", vertical="middle"
+        ),
         Align.center(messages, vertical="middle"),
     )
 

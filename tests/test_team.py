@@ -252,3 +252,144 @@ class TestTeamManagerDelete:
         assert task_dir.exists()
         mock_team_manager.delete_team("gone")
         assert not task_dir.exists()
+
+
+# ─────────────────────────────────────────────────────────
+# Standalone tool functions
+# ─────────────────────────────────────────────────────────
+
+
+class TestCreateTeamFunc:
+    @pytest.mark.asyncio
+    async def test_success(self, monkeypatch, tmp_path):
+        from unittest.mock import MagicMock
+
+        import dazi.team as mod
+
+        mock_tm = MagicMock()
+        mock_tm.create_team.return_value = mod.TeamConfig(name="t1", description="desc")
+        mock_tm._config_path.return_value = tmp_path / "c.json"
+        mock_tm._task_dir.return_value = tmp_path / "tasks"
+        monkeypatch.setattr("dazi._singletons.team_manager", mock_tm)
+        result = await mod.create_team_func(name="t1", description="desc")
+        assert "Team created: t1" in result
+
+    @pytest.mark.asyncio
+    async def test_error(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        import dazi.team as mod
+
+        mock_tm = MagicMock(create_team=MagicMock(side_effect=mod.TeamError("exists")))
+        monkeypatch.setattr("dazi._singletons.team_manager", mock_tm)
+        result = await mod.create_team_func(name="t1")
+        assert "Error" in result
+
+
+class TestDeleteTeamFunc:
+    @pytest.mark.asyncio
+    async def test_not_found(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        import dazi.team as mod
+
+        mock_tm = MagicMock(team_exists=MagicMock(return_value=False))
+        monkeypatch.setattr("dazi._singletons.team_manager", mock_tm)
+        result = await mod.delete_team_func(name="ghost")
+        assert "not found" in result
+
+    @pytest.mark.asyncio
+    async def test_success(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        import dazi.team as mod
+
+        mock_tm = MagicMock(
+            team_exists=MagicMock(return_value=True), delete_team=MagicMock(return_value=True)
+        )
+        monkeypatch.setattr("dazi._singletons.team_manager", mock_tm)
+        result = await mod.delete_team_func(name="t1")
+        assert "deleted successfully" in result
+
+    @pytest.mark.asyncio
+    async def test_error(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        import dazi.team as mod
+
+        mock_tm = MagicMock(
+            team_exists=MagicMock(return_value=True),
+            delete_team=MagicMock(side_effect=mod.TeamError("active members")),
+        )
+        monkeypatch.setattr("dazi._singletons.team_manager", mock_tm)
+        result = await mod.delete_team_func(name="t1")
+        assert "Error" in result
+
+
+class TestListTeamsFunc:
+    @pytest.mark.asyncio
+    async def test_no_teams(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        import dazi.team as mod
+
+        monkeypatch.setattr(
+            "dazi._singletons.team_manager", MagicMock(list_teams=MagicMock(return_value=[]))
+        )
+        result = await mod.list_teams_func()
+        assert "No teams" in result
+
+    @pytest.mark.asyncio
+    async def test_with_teams(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        import dazi.team as mod
+
+        m = MagicMock(name="agent1", status="active")
+        t = MagicMock(name="t1", description="desc", members=[m], created_at="2025-01-01")
+        monkeypatch.setattr(
+            "dazi._singletons.team_manager", MagicMock(list_teams=MagicMock(return_value=[t]))
+        )
+        result = await mod.list_teams_func()
+        assert "t1" in result
+
+
+class TestShowTeamFunc:
+    @pytest.mark.asyncio
+    async def test_not_found(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        import dazi.team as mod
+
+        monkeypatch.setattr(
+            "dazi._singletons.team_manager", MagicMock(get_team=MagicMock(return_value=None))
+        )
+        result = await mod.show_team_func(name="ghost")
+        assert "not found" in result
+
+    @pytest.mark.asyncio
+    async def test_with_members(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        import dazi.team as mod
+
+        member = MagicMock(name="a1", agent_id="a1@t", status="active")
+        team = MagicMock(name="t1", description="d", members=[member], created_at="2025-01-01")
+        monkeypatch.setattr(
+            "dazi._singletons.team_manager", MagicMock(get_team=MagicMock(return_value=team))
+        )
+        result = await mod.show_team_func(name="t1")
+        assert "a1" in result
+
+    @pytest.mark.asyncio
+    async def test_no_members(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        import dazi.team as mod
+
+        team = MagicMock(name="t1", description="", members=[], created_at="")
+        monkeypatch.setattr(
+            "dazi._singletons.team_manager", MagicMock(get_team=MagicMock(return_value=team))
+        )
+        result = await mod.show_team_func(name="t1")
+        assert "no members" in result

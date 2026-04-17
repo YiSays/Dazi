@@ -381,7 +381,7 @@ class BackgroundTaskManager:
 
                 # Append to output file
                 try:
-                    with open(task.output_file, "ab") as f:
+                    with task.output_file.open("ab") as f:
                         f.write(chunk)
                 except Exception:
                     pass

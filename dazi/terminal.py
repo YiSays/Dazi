@@ -23,7 +23,7 @@ def count_prompt_lines(
     The prompt consists of:
       - Status bar: all segment text before the '\\n' separator
       - Input line(s): the prompt symbol ('❯ ') + user_input
-    """
+    """  # noqa: RUF002
     ft = FormattedText(segments)
     plain = to_plain_text(ft)
 
@@ -36,7 +36,7 @@ def count_prompt_lines(
     status_lines = max(1, -(-status_width // term_width)) if status_width else 1
 
     # Input lines: prompt symbol + user input (may contain newlines)
-    prompt_symbol = "❯ "
+    prompt_symbol = "❯ "  # noqa: RUF001
     input_lines = 0
     for i, line in enumerate(user_input.split("\n")):
         line_text = (prompt_symbol + line) if i == 0 else line

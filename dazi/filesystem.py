@@ -198,7 +198,7 @@ def calculator(expression: str) -> str:
         "float": float,
     }
     try:
-        result = eval(expression, {"__builtins__": {}}, allowed_names)  # noqa: S307
+        result = eval(expression, {"__builtins__": {}}, allowed_names)
         return str(result)
     except Exception as e:
         return f"Error: {e}"

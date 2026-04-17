@@ -90,6 +90,7 @@ class DaziSettings:
     max_concurrent_tools: int = 5
     mcp_servers: dict[str, dict] = field(default_factory=dict)
     context_window: int | None = None
+    thinking_enabled: bool = True
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to dict for JSON persistence.
@@ -168,6 +169,7 @@ def merge_settings(base: DaziSettings, override: DaziSettings) -> DaziSettings:
     merged.auto_compact = override.auto_compact
     merged.auto_memory = override.auto_memory
     merged.max_concurrent_tools = override.max_concurrent_tools
+    merged.thinking_enabled = override.thinking_enabled
 
     # Lists: concatenate + dedupe
     merged.allow_rules = _dedupe_preserve_order(base.allow_rules + override.allow_rules)
@@ -202,14 +204,15 @@ class SettingsManager:
     Invalid JSON files log a warning and are skipped.
     """
 
-    def __init__(self, project_root: Path | None = None) -> None:
+    def __init__(self, project_root: Path | None = None, user_dir: Path | None = None) -> None:
         """Initialize settings manager.
 
         Args:
             project_root: Project root directory. Defaults to cwd.
+            user_dir: User settings directory. Defaults to ~/.dazi.
         """
         self._project_root = project_root or Path.cwd()
-        self._user_path = Path.home() / ".dazi" / USER_SETTINGS_FILENAME
+        self._user_path = (user_dir or Path.home() / ".dazi") / USER_SETTINGS_FILENAME
         self._project_path = self._project_root / ".dazi" / PROJECT_SETTINGS_FILENAME
         self._settings: DaziSettings | None = None
         # Track which source set each field, for /settings display
@@ -370,6 +373,10 @@ class SettingsManager:
         from dazi.config import OPENAI_API_KEY
 
         return OPENAI_API_KEY or None
+
+    def is_thinking_enabled(self) -> bool:
+        """Get whether extended thinking (reasoning_content) is enabled."""
+        return self.settings.thinking_enabled
 
     def get_mcp_servers(self) -> dict[str, dict]:
         """Get MCP server configurations from merged settings.

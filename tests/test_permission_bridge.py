@@ -279,3 +279,96 @@ class TestRequestPermission:
                 timeout=0.3,
                 poll_interval=0.1,
             )
+
+
+# ─────────────────────────────────────────────────────────
+# request_permission_func (standalone tool function)
+# ─────────────────────────────────────────────────────────
+
+
+class TestRequestPermissionFunc:
+    @pytest.mark.asyncio
+    async def test_no_active_team(self, monkeypatch):
+
+        import dazi.permission_bridge as mod
+
+        monkeypatch.setattr("dazi._singletons.active_team_name", None)
+        monkeypatch.setattr("dazi._singletons.current_agent_name", "worker")
+
+        result = await mod.request_permission_func(tool_name="file_reader")
+        assert "Error: no active team" in result
+
+    @pytest.mark.asyncio
+    async def test_no_agent_identity(self, monkeypatch):
+
+        import dazi.permission_bridge as mod
+
+        monkeypatch.setattr("dazi._singletons.active_team_name", "team1")
+        monkeypatch.setattr("dazi._singletons.current_agent_name", None)
+
+        result = await mod.request_permission_func(tool_name="file_reader")
+        assert "Error: agent identity not set" in result
+
+    @pytest.mark.asyncio
+    async def test_leader_cannot_request_own_permission(self, monkeypatch):
+
+        import dazi.permission_bridge as mod
+
+        monkeypatch.setattr("dazi._singletons.active_team_name", "team1")
+        monkeypatch.setattr("dazi._singletons.current_agent_name", "team-lead")
+
+        result = await mod.request_permission_func(tool_name="file_reader")
+        assert "team leader does not need to request permission" in result
+
+    @pytest.mark.asyncio
+    async def test_approved(self, monkeypatch):
+        from unittest.mock import AsyncMock, MagicMock
+
+        import dazi.permission_bridge as mod
+
+        mock_result = MagicMock()
+        mock_result.approved = True
+        mock_result.request_id = "r1"
+        mock_result.reason = "ok"
+        mock_bridge = AsyncMock()
+        mock_bridge.request_permission = AsyncMock(return_value=mock_result)
+        monkeypatch.setattr("dazi._singletons.active_team_name", "team1")
+        monkeypatch.setattr("dazi._singletons.current_agent_name", "worker")
+        monkeypatch.setattr("dazi._singletons.permission_bridge", mock_bridge)
+
+        result = await mod.request_permission_func(tool_name="file_reader")
+        assert "APPROVED" in result
+
+    @pytest.mark.asyncio
+    async def test_denied(self, monkeypatch):
+        from unittest.mock import AsyncMock, MagicMock
+
+        import dazi.permission_bridge as mod
+
+        mock_result = MagicMock()
+        mock_result.approved = False
+        mock_result.request_id = "r1"
+        mock_result.reason = "denied"
+        mock_bridge = AsyncMock()
+        mock_bridge.request_permission = AsyncMock(return_value=mock_result)
+        monkeypatch.setattr("dazi._singletons.active_team_name", "team1")
+        monkeypatch.setattr("dazi._singletons.current_agent_name", "worker")
+        monkeypatch.setattr("dazi._singletons.permission_bridge", mock_bridge)
+
+        result = await mod.request_permission_func(tool_name="shell_exec")
+        assert "DENIED" in result
+
+    @pytest.mark.asyncio
+    async def test_timeout(self, monkeypatch):
+        from unittest.mock import AsyncMock
+
+        import dazi.permission_bridge as mod
+
+        mock_bridge = AsyncMock()
+        mock_bridge.request_permission = AsyncMock(side_effect=TimeoutError("timed out"))
+        monkeypatch.setattr("dazi._singletons.active_team_name", "team1")
+        monkeypatch.setattr("dazi._singletons.current_agent_name", "worker")
+        monkeypatch.setattr("dazi._singletons.permission_bridge", mock_bridge)
+
+        result = await mod.request_permission_func(tool_name="file_reader")
+        assert "timed out" in result

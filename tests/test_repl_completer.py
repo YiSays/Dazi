@@ -1,16 +1,19 @@
-"""Tests for the slash-command completer and /help display."""
+"""Tests for the slash-command completer, /help display, and key bindings."""
 
 from __future__ import annotations
 
 from io import StringIO
+from unittest.mock import MagicMock
 
 from prompt_toolkit.completion import CompleteEvent
 from prompt_toolkit.document import Document
+from prompt_toolkit.keys import Keys
 from rich.console import Console
 
 from dazi.repl_completer import (
     COMMAND_REGISTRY,
     SlashCommandCompleter,
+    _build_repl_key_bindings,
     print_help,
 )
 
@@ -101,7 +104,7 @@ class TestSlashCommandCompleter:
 
 
 class TestCommandRegistry:
-    REQUIRED_COMMANDS = [
+    REQUIRED_COMMANDS = (
         "quit",
         "clear",
         "cost",
@@ -139,7 +142,7 @@ class TestCommandRegistry:
         "dazimd",
         "compact",
         "tokens",
-    ]
+    )
 
     def test_registry_covers_all_commands(self):
         registry_names = {c.name.lstrip("/") for c in COMMAND_REGISTRY}
@@ -180,3 +183,84 @@ class TestPrintHelp:
         rendered = output.getvalue()
         for category in ["Core", "Mode", "Permissions", "MCP", "Teams", "Context"]:
             assert category in rendered
+
+
+# ─────────────────────────────────────────────────────────
+# Key bindings
+# ─────────────────────────────────────────────────────────
+
+
+def _find_handler(kb, *keys):
+    """Find a binding handler by its key sequence."""
+    for binding in kb.bindings:
+        if tuple(binding.keys) == tuple(keys):
+            return binding.handler
+    return None
+
+
+def _mock_event():
+    """Create a mock event with a buffer."""
+    buf = MagicMock()
+    buf.text = "some input"
+    event = MagicMock()
+    event.current_buffer = buf
+    return event, buf
+
+
+class TestReplKeyBindings:
+    def test_ctrl_q_submits_quit(self):
+        kb = _build_repl_key_bindings({"mode": "execute"})
+        handler = _find_handler(kb, Keys.ControlQ)
+        assert handler is not None
+
+        event, buf = _mock_event()
+        handler(event)
+        assert buf.text == "/quit"
+        buf.validate_and_handle.assert_called_once()
+
+    def test_shift_tab_toggles_to_plan_in_execute_mode(self):
+        kb = _build_repl_key_bindings({"mode": "execute"})
+        handler = _find_handler(kb, Keys.BackTab)
+        assert handler is not None
+
+        event, buf = _mock_event()
+        handler(event)
+        assert buf.text == "/plan"
+        buf.validate_and_handle.assert_called_once()
+
+    def test_shift_tab_toggles_to_go_in_plan_mode(self):
+        kb = _build_repl_key_bindings({"mode": "plan"})
+        handler = _find_handler(kb, Keys.BackTab)
+        assert handler is not None
+
+        event, buf = _mock_event()
+        handler(event)
+        assert buf.text == "/go"
+        buf.validate_and_handle.assert_called_once()
+
+    def test_double_esc_clears_input(self):
+        kb = _build_repl_key_bindings({"mode": "execute"})
+        handler = _find_handler(kb, Keys.Escape, Keys.Escape)
+        assert handler is not None
+
+        event, buf = _mock_event()
+        handler(event)
+        assert buf.text == ""
+
+    def test_double_ctrl_c_submits_quit(self):
+        kb = _build_repl_key_bindings({"mode": "execute"})
+        handler = _find_handler(kb, Keys.ControlC, Keys.ControlC)
+        assert handler is not None
+
+        event, buf = _mock_event()
+        handler(event)
+        assert buf.text == "/quit"
+        buf.validate_and_handle.assert_called_once()
+
+    def test_all_bindings_registered(self):
+        kb = _build_repl_key_bindings({"mode": "execute"})
+        key_sequences = [tuple(b.keys) for b in kb.bindings]
+        assert (Keys.ControlQ,) in key_sequences
+        assert (Keys.BackTab,) in key_sequences
+        assert (Keys.Escape, Keys.Escape) in key_sequences
+        assert (Keys.ControlC, Keys.ControlC) in key_sequences

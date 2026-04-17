@@ -226,3 +226,260 @@ class TestMailboxMarkReadPurge:
     async def test_purge_empty_inbox(self, mailbox: Mailbox):
         count = await mailbox.purge("team1", "nobody")
         assert count == 0
+
+
+# ─────────────────────────────────────────────────────────
+# Standalone tool functions
+# ─────────────────────────────────────────────────────────
+
+
+class TestSendMessageFunc:
+    @pytest.mark.asyncio
+    async def test_no_active_team(self, monkeypatch):
+
+        import dazi.mailbox as mod
+
+        monkeypatch.setattr("dazi._singletons.active_team_name", None)
+        monkeypatch.setattr("dazi._singletons.current_agent_name", "worker")
+        result = await mod.send_message_func(to="leader", message="hi")
+        assert "no active team" in result
+
+    @pytest.mark.asyncio
+    async def test_no_agent_identity(self, monkeypatch):
+
+        import dazi.mailbox as mod
+
+        monkeypatch.setattr("dazi._singletons.active_team_name", "team1")
+        monkeypatch.setattr("dazi._singletons.current_agent_name", None)
+        result = await mod.send_message_func(to="leader", message="hi")
+        assert "agent identity not set" in result
+
+    @pytest.mark.asyncio
+    async def test_send_to_self(self, monkeypatch):
+
+        import dazi.mailbox as mod
+
+        monkeypatch.setattr("dazi._singletons.active_team_name", "team1")
+        monkeypatch.setattr("dazi._singletons.current_agent_name", "worker")
+        result = await mod.send_message_func(to="worker", message="hi")
+        assert "yourself" in result
+
+    @pytest.mark.asyncio
+    async def test_broadcast_no_members(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        import dazi.mailbox as mod
+
+        mock_tm = MagicMock(get_team=MagicMock(return_value=MagicMock(members=[])))
+        monkeypatch.setattr("dazi._singletons.active_team_name", "team1")
+        monkeypatch.setattr("dazi._singletons.current_agent_name", "worker")
+        monkeypatch.setattr("dazi._singletons.team_manager", mock_tm)
+        result = await mod.send_message_func(to="*", message="hi")
+        assert "no team members" in result
+
+    @pytest.mark.asyncio
+    async def test_direct_send_success(self, monkeypatch):
+        from unittest.mock import AsyncMock, MagicMock
+
+        import dazi.mailbox as mod
+
+        monkeypatch.setattr("dazi._singletons.active_team_name", "team1")
+        monkeypatch.setattr("dazi._singletons.current_agent_name", "worker")
+        monkeypatch.setattr(
+            "dazi._singletons.mailbox", MagicMock(send=AsyncMock(return_value=["leader"]))
+        )
+        monkeypatch.setattr("dazi._singletons.team_manager", MagicMock())
+        result = await mod.send_message_func(to="leader", message="hello")
+        assert "sent to leader" in result
+
+    @pytest.mark.asyncio
+    async def test_direct_send_fail(self, monkeypatch):
+        from unittest.mock import AsyncMock, MagicMock
+
+        import dazi.mailbox as mod
+
+        monkeypatch.setattr("dazi._singletons.active_team_name", "team1")
+        monkeypatch.setattr("dazi._singletons.current_agent_name", "worker")
+        monkeypatch.setattr("dazi._singletons.mailbox", MagicMock(send=AsyncMock(return_value=[])))
+        monkeypatch.setattr("dazi._singletons.team_manager", MagicMock())
+        result = await mod.send_message_func(to="leader", message="hello")
+        assert "could not deliver" in result
+
+    @pytest.mark.asyncio
+    async def test_broadcast_success(self, monkeypatch):
+        from unittest.mock import AsyncMock, MagicMock
+
+        import dazi.mailbox as mod
+
+        m1 = MagicMock(name="leader")
+        m2 = MagicMock(name="backend")
+        monkeypatch.setattr("dazi._singletons.active_team_name", "team1")
+        monkeypatch.setattr("dazi._singletons.current_agent_name", "worker")
+        monkeypatch.setattr(
+            "dazi._singletons.team_manager",
+            MagicMock(
+                get_team=MagicMock(
+                    return_value=MagicMock(members=[m1, m2, MagicMock(name="worker")])
+                )
+            ),
+        )
+        monkeypatch.setattr(
+            "dazi._singletons.mailbox",
+            MagicMock(send=AsyncMock(return_value=["leader", "backend"])),
+        )
+        result = await mod.send_message_func(to="*", message="hi")
+        assert "Broadcast sent to 2" in result
+
+
+class TestCheckInboxFunc:
+    @pytest.mark.asyncio
+    async def test_no_active_team(self, monkeypatch):
+
+        import dazi.mailbox as mod
+
+        monkeypatch.setattr("dazi._singletons.active_team_name", None)
+        result = await mod.check_inbox_func()
+        assert "no active team" in result
+
+    @pytest.mark.asyncio
+    async def test_no_agent_identity(self, monkeypatch):
+
+        import dazi.mailbox as mod
+
+        monkeypatch.setattr("dazi._singletons.active_team_name", "team1")
+        monkeypatch.setattr("dazi._singletons.current_agent_name", None)
+        result = await mod.check_inbox_func()
+        assert "agent identity not set" in result
+
+    @pytest.mark.asyncio
+    async def test_empty_inbox(self, monkeypatch):
+        from unittest.mock import AsyncMock, MagicMock
+
+        import dazi.mailbox as mod
+
+        monkeypatch.setattr("dazi._singletons.active_team_name", "team1")
+        monkeypatch.setattr("dazi._singletons.current_agent_name", "worker")
+        monkeypatch.setattr(
+            "dazi._singletons.mailbox",
+            MagicMock(
+                receive=AsyncMock(return_value=[]),
+                mark_read=AsyncMock(return_value=0),
+            ),
+        )
+        result = await mod.check_inbox_func()
+        assert "No unread" in result
+
+    @pytest.mark.asyncio
+    async def test_with_messages(self, monkeypatch):
+        from unittest.mock import AsyncMock, MagicMock
+
+        import dazi.mailbox as mod
+
+        msg = MagicMock(
+            id="m1",
+            msg_type="text",
+            from_agent="leader",
+            timestamp="2025-01-01T00:00:00Z",
+            text="hello world",
+            metadata={},
+        )
+        monkeypatch.setattr("dazi._singletons.active_team_name", "team1")
+        monkeypatch.setattr("dazi._singletons.current_agent_name", "worker")
+        monkeypatch.setattr(
+            "dazi._singletons.mailbox",
+            MagicMock(
+                receive=AsyncMock(return_value=[msg]),
+                mark_read=AsyncMock(return_value=1),
+            ),
+        )
+        result = await mod.check_inbox_func()
+        assert "Inbox (1" in result
+        assert "leader" in result
+
+    @pytest.mark.asyncio
+    async def test_message_with_metadata(self, monkeypatch):
+        from unittest.mock import AsyncMock, MagicMock
+
+        import dazi.mailbox as mod
+
+        msg = MagicMock(
+            id="m1",
+            msg_type="permission_request",
+            from_agent="leader",
+            timestamp="2025-01-01T00:00:00Z",
+            text="check",
+            metadata={"request_id": "r1"},
+        )
+        monkeypatch.setattr("dazi._singletons.active_team_name", "team1")
+        monkeypatch.setattr("dazi._singletons.current_agent_name", "worker")
+        monkeypatch.setattr(
+            "dazi._singletons.mailbox",
+            MagicMock(
+                receive=AsyncMock(return_value=[msg]),
+                mark_read=AsyncMock(return_value=1),
+            ),
+        )
+        result = await mod.check_inbox_func()
+        assert "Metadata: request_id" in result
+        assert "[permission_request]" in result
+
+    @pytest.mark.asyncio
+    async def test_all_messages(self, monkeypatch):
+        from unittest.mock import AsyncMock, MagicMock
+
+        import dazi.mailbox as mod
+
+        msg = MagicMock(
+            id="m1",
+            msg_type="text",
+            from_agent="leader",
+            timestamp="2025-01-01T00:00:00Z",
+            text="hi",
+            metadata={},
+        )
+        monkeypatch.setattr("dazi._singletons.active_team_name", "team1")
+        monkeypatch.setattr("dazi._singletons.current_agent_name", "worker")
+        monkeypatch.setattr(
+            "dazi._singletons.mailbox",
+            MagicMock(
+                receive=AsyncMock(return_value=[msg]),
+                mark_read=AsyncMock(return_value=1),
+            ),
+        )
+        result = await mod.check_inbox_func(unread_only=False)
+        assert "No messages" not in result
+
+
+class TestSendIdleNotification:
+    @pytest.mark.asyncio
+    async def test_with_team(self, monkeypatch):
+        from unittest.mock import AsyncMock, MagicMock
+
+        import dazi.mailbox as mod
+
+        m = MagicMock(name="leader")
+        monkeypatch.setattr("dazi._singletons.mailbox", MagicMock(send=AsyncMock(return_value=[m])))
+        monkeypatch.setattr(
+            "dazi._singletons.team_manager",
+            MagicMock(
+                get_team=MagicMock(return_value=MagicMock(members=[m, MagicMock(name="backend")])),
+            ),
+        )
+        await mod.send_idle_notification(
+            agent_name="worker",
+            team_name="team1",
+            completed_task_id="1",
+            idle_reason="done",
+        )
+
+    @pytest.mark.asyncio
+    async def test_no_team(self, monkeypatch):
+        from unittest.mock import AsyncMock, MagicMock
+
+        import dazi.mailbox as mod
+
+        monkeypatch.setattr("dazi._singletons.mailbox", MagicMock(send=AsyncMock(return_value=[])))
+        monkeypatch.setattr(
+            "dazi._singletons.team_manager", MagicMock(get_team=MagicMock(return_value=None))
+        )
+        await mod.send_idle_notification(agent_name="worker", team_name="team1")

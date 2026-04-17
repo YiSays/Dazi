@@ -124,7 +124,7 @@ class Mailbox:
         if not path.exists():
             return []
 
-        with open(path) as f:
+        with path.open() as f:
             fcntl.flock(f, fcntl.LOCK_SH)
             try:
                 data = json.load(f)
@@ -137,7 +137,7 @@ class Mailbox:
         path.parent.mkdir(parents=True, exist_ok=True)
         data = [m.to_dict() for m in messages]
 
-        with open(path, "w") as f:
+        with path.open("w") as f:
             fcntl.flock(f, fcntl.LOCK_EX)
             try:
                 json.dump(data, f, indent=2)

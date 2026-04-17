@@ -329,6 +329,17 @@ def _build_repl_key_bindings(state: dict) -> KeyBindings:
         event.current_buffer.text = cmd
         event.current_buffer.validate_and_handle()
 
+    # Double ESC → clear input (uses prompt_toolkit's built-in sequence matching)
+    @kb.add("escape", "escape")
+    def _double_esc(event):
+        event.current_buffer.text = ""
+
+    # Double Ctrl+C → submit /quit to exit REPL
+    @kb.add("c-c", "c-c")
+    def _double_ctrl_c(event):
+        event.current_buffer.text = "/quit"
+        event.current_buffer.validate_and_handle()
+
     return kb
 
 

@@ -25,8 +25,12 @@ from dazi.base import DaziTool, ToolSafety
 # ─────────────────────────────────────────────────────────
 
 SKILL_FILENAME = "SKILL.md"
-USER_SKILLS_DIR = Path.home() / ".dazi" / "skills"
 PROJECT_SKILLS_DIR_NAME = ".dazi/skills"
+
+
+def _get_user_skills_dir() -> Path:
+    return Path.home() / ".dazi" / "skills"
+
 
 # Skill creation paths:
 #   - Project-level (preferred for new skills): <project_root>/.dazi/skills/<name>/SKILL.md
@@ -476,7 +480,7 @@ def discover_skills(
         skill_map[skill.name] = skill
 
     # Scan user-level skills
-    for skill in _scan_skills_dir(USER_SKILLS_DIR):
+    for skill in _scan_skills_dir(_get_user_skills_dir()):
         skill_map[skill.name] = skill
 
     # Scan project-level skills

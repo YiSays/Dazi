@@ -5,8 +5,22 @@ from __future__ import annotations
 import json
 
 import pytest
+from pydantic import ValidationError
 
-from dazi.task_store import Task, TaskStatus
+from dazi.task_store import (
+    Task,
+    TaskCreateInput,
+    TaskGetInput,
+    TaskListInput,
+    TaskStatus,
+    TaskStore,
+    TaskUpdateInput,
+    task_create,
+    task_get,
+    task_list,
+    task_update,
+)
+from tests.helpers.mock_singletons import patch_singletons
 
 # ─────────────────────────────────────────────────────────
 # TaskStatus enum
@@ -228,3 +242,386 @@ class TestTaskStoreReset:
     def test_reset_on_empty(self, mock_task_store):
         mock_task_store.reset()  # should not raise
         assert mock_task_store.list_all() == []
+
+
+# ─────────────────────────────────────────────────────────
+# TaskStore — Edge cases / error handling
+# ─────────────────────────────────────────────────────────
+
+
+class TestTaskStoreEdgeCases:
+    def test_next_id_ignores_non_numeric_filenames(self, tmp_path):
+        store = TaskStore(tmp_path / "tasks", list_id="test")
+        store._list_dir.mkdir(parents=True, exist_ok=True)
+        # Create a non-numeric file
+        (store._list_dir / "badfile.json").write_text("{}")
+        (store._list_dir / "3.json").write_text("{}")
+        task_id = store._next_id()
+        assert task_id == 4
+
+    def test_get_returns_none_on_invalid_json(self, tmp_path):
+        store = TaskStore(tmp_path / "tasks", list_id="test")
+        store._list_dir.mkdir(parents=True, exist_ok=True)
+        (store._list_dir / "1.json").write_text("not valid json {{{")
+        assert store.get(1) is None
+
+    def test_get_returns_none_on_missing_keys(self, tmp_path):
+        store = TaskStore(tmp_path / "tasks", list_id="test")
+        store._list_dir.mkdir(parents=True, exist_ok=True)
+        (store._list_dir / "1.json").write_text('{"id": 1}')
+        assert store.get(1) is None
+
+    def test_list_all_skips_invalid_files(self, tmp_path):
+        store = TaskStore(tmp_path / "tasks", list_id="test")
+        store._list_dir.mkdir(parents=True, exist_ok=True)
+        # Create a valid task
+        store.create("Valid", "d")
+        # Create an invalid file
+        (store._list_dir / "bad.json").write_text("not json")
+        tasks = store.list_all()
+        assert len(tasks) == 1
+        assert tasks[0].subject == "Valid"
+
+    def test_list_all_skips_files_with_missing_keys(self, tmp_path):
+        store = TaskStore(tmp_path / "tasks", list_id="test")
+        store._list_dir.mkdir(parents=True, exist_ok=True)
+        store.create("Valid", "d")
+        (store._list_dir / "incomplete.json").write_text('{"id": 2}')
+        tasks = store.list_all()
+        assert len(tasks) == 1
+
+    def test_add_blocked_by_one_nonexistent(self, mock_task_store):
+        t1 = mock_task_store.create("A", "d")
+        a, b = mock_task_store.add_blocked_by(t1.id, 999)
+        assert a is None
+        assert b is None
+
+    def test_update_ignores_unknown_fields(self, mock_task_store):
+        task = mock_task_store.create("T", "d")
+        updated = mock_task_store.update(task.id, subject="New", unknown_field="val")
+        assert updated is not None
+        assert updated.subject == "New"
+        assert not hasattr(updated, "unknown_field")
+
+    def test_update_all_allowed_fields(self, mock_task_store):
+        task = mock_task_store.create("T", "d")
+        updated = mock_task_store.update(
+            task.id,
+            subject="New Subj",
+            description="New Desc",
+            active_form="Doing",
+            status=TaskStatus.IN_PROGRESS,
+            owner="bob",
+            metadata={"key": "val"},
+        )
+        assert updated.subject == "New Subj"
+        assert updated.description == "New Desc"
+        assert updated.active_form == "Doing"
+        assert updated.status == TaskStatus.IN_PROGRESS
+        assert updated.owner == "bob"
+        assert updated.metadata == {"key": "val"}
+
+
+# ─────────────────────────────────────────────────────────
+# Pydantic Validators
+# ─────────────────────────────────────────────────────────
+
+
+class TestTaskUpdateInputValidators:
+    def test_validate_status_valid_values(self):
+        for status in ("pending", "in_progress", "completed", "deleted"):
+            inp = TaskUpdateInput(taskId="1", status=status)
+            assert inp.status == status
+
+    def test_validate_status_none_is_ok(self):
+        inp = TaskUpdateInput(taskId="1", status=None)
+        assert inp.status is None
+
+    def test_validate_status_invalid_raises(self):
+        with pytest.raises(ValidationError):
+            TaskUpdateInput(taskId="1", status="invalid_status")
+
+    def test_validate_task_id_valid(self):
+        inp = TaskUpdateInput(taskId="42")
+        assert inp.taskId == "42"
+
+    def test_validate_task_id_invalid_raises(self):
+        with pytest.raises(ValidationError):
+            TaskUpdateInput(taskId="not_a_number")
+
+    def test_validate_task_id_empty_raises(self):
+        with pytest.raises(ValidationError):
+            TaskUpdateInput(taskId="")
+
+
+class TestTaskGetInputValidator:
+    def test_validate_task_id_valid(self):
+        inp = TaskGetInput(taskId="42")
+        assert inp.taskId == "42"
+
+    def test_validate_task_id_invalid_raises(self):
+        with pytest.raises(ValidationError):
+            TaskGetInput(taskId="abc")
+
+
+class TestTaskCreateInput:
+    def test_defaults(self):
+        inp = TaskCreateInput(subject="S", description="D")
+        assert inp.activeForm == ""
+        assert inp.metadata is None
+
+    def test_with_all_fields(self):
+        inp = TaskCreateInput(subject="S", description="D", activeForm="Doing", metadata={"k": "v"})
+        assert inp.activeForm == "Doing"
+        assert inp.metadata == {"k": "v"}
+
+
+class TestTaskListInput:
+    def test_creates_empty(self):
+        TaskListInput()  # just ensure no validation error
+
+
+# ─────────────────────────────────────────────────────────
+# Tool functions (task_create, task_update, task_list, task_get)
+# ─────────────────────────────────────────────────────────
+
+
+@pytest.fixture(autouse=True)
+def _patch_singletons(monkeypatch, tmp_path):
+    """Patch singletons for all tool function tests."""
+    patch_singletons(monkeypatch, tmp_path)
+
+
+class TestTaskCreateFunction:
+    def test_basic_create(self):
+        result = task_create(subject="My task", description="Do something")
+        assert "Task created: #1" in result
+        assert "Subject: My task" in result
+        assert "Status: pending" in result
+        assert "task_update" in result
+
+    def test_create_with_active_form(self):
+        result = task_create(subject="T", description="D", activeForm="Working")
+        assert "Task created" in result
+
+    def test_create_with_metadata(self):
+        result = task_create(subject="T", description="D", metadata={"p": 1})
+        assert "Task created" in result
+
+    def test_create_second_task(self):
+        task_create(subject="First", description="D")
+        result = task_create(subject="Second", description="D")
+        assert "#2" in result
+
+
+class TestTaskUpdateFunction:
+    def test_update_status(self):
+        task_create(subject="T", description="D")
+        result = task_update(taskId="1", status="in_progress")
+        assert "Task #1 updated" in result
+        assert "Status: in_progress" in result
+
+    def test_update_subject(self):
+        task_create(subject="Old", description="D")
+        result = task_update(taskId="1", subject="New")
+        assert "Subject: New" in result
+
+    def test_update_description(self):
+        task_create(subject="T", description="Old desc")
+        result = task_update(taskId="1", description="New desc")
+        assert "Task #1 updated" in result
+
+    def test_update_active_form(self):
+        task_create(subject="T", description="D")
+        result = task_update(taskId="1", activeForm="Doing things")
+        assert "Task #1 updated" in result
+
+    def test_update_owner(self):
+        task_create(subject="T", description="D")
+        result = task_update(taskId="1", owner="alice")
+        assert "Task #1 updated" in result
+
+    def test_update_metadata(self):
+        task_create(subject="T", description="D")
+        result = task_update(taskId="1", metadata={"priority": "high"})
+        assert "Task #1 updated" in result
+
+    def test_delete_task(self):
+        task_create(subject="T", description="D")
+        result = task_update(taskId="1", status="deleted")
+        assert "Task #1 deleted" in result
+
+    def test_delete_nonexistent_task(self):
+        result = task_update(taskId="999", status="deleted")
+        assert "Error" in result
+        assert "not found" in result
+
+    def test_update_nonexistent_task(self):
+        result = task_update(taskId="999", status="in_progress")
+        assert "Error" in result
+        assert "not found" in result
+
+    def test_update_invalid_task_id(self):
+        result = task_update(taskId="abc", status="in_progress")
+        assert "Error" in result
+        assert "Invalid taskId" in result
+
+    def test_update_no_changes(self):
+        task_create(subject="T", description="D")
+        result = task_update(taskId="1")
+        assert "Task #1 updated (none)" in result
+        assert "Subject: T" in result
+
+    def test_update_no_changes_nonexistent_task(self):
+        result = task_update(taskId="999")
+        assert "Error" in result
+        assert "Task #999 not found" in result
+
+    def test_task_gone_after_update(self, monkeypatch):
+        """Cover the 'not found after update' path (line 455)."""
+        from dazi._singletons import task_store as real_store
+
+        # Create a task, then make the store's get return None on re-fetch
+        task_create(subject="T", description="D")
+        original_get = real_store.get
+
+        call_count = 0
+
+        def flaky_get(self, tid):
+            nonlocal call_count
+            call_count += 1
+            # First call succeeds (inside update -> get), second returns None (re-fetch at line 453)
+            if call_count <= 1:
+                return original_get(tid)
+            return None
+
+        # Patch at the module level so the local import in task_update picks it up
+        monkeypatch.setattr(real_store.__class__, "get", flaky_get)
+
+        result = task_update(taskId="1", status="in_progress")
+        assert "not found after update" in result
+
+    def test_update_with_add_blocks(self):
+        task_create(subject="Blocker", description="D")
+        task_create(subject="Blocked", description="D")
+        result = task_update(taskId="1", addBlocks=["2"])
+        assert "addBlocks" in result
+        assert "Blocks:" in result
+
+    def test_update_with_add_blocked_by(self):
+        task_create(subject="Blocker", description="D")
+        task_create(subject="Blocked", description="D")
+        result = task_update(taskId="2", addBlockedBy=["1"])
+        assert "addBlockedBy" in result
+        assert "Blocked by:" in result
+
+    def test_update_add_blocks_invalid_id(self):
+        task_create(subject="T", description="D")
+        result = task_update(taskId="1", addBlocks=["not_a_number"])
+        assert "addBlocks" in result
+
+    def test_update_add_blocked_by_invalid_id(self):
+        task_create(subject="T", description="D")
+        result = task_update(taskId="1", addBlockedBy=["not_a_number"])
+        # Should not crash, just skip the invalid ID
+        assert "addBlockedBy" in result
+
+    def test_update_multiple_fields(self):
+        task_create(subject="T", description="D")
+        result = task_update(
+            taskId="1", status="in_progress", subject="New Subject", activeForm="Working"
+        )
+        assert "in_progress" in result
+        assert "New Subject" in result
+
+    def test_update_deleted_status_no_status_change_line(self):
+        task_create(subject="T", description="D")
+        # deleted status triggers delete, not update
+        result = task_update(taskId="1", status="deleted")
+        assert "deleted" in result
+        # Should NOT have a "Status: deleted" line (it was removed)
+        assert "Status: deleted" not in result
+
+    def test_update_with_blocks_and_blocked_by(self):
+        task_create(subject="A", description="D")
+        task_create(subject="B", description="D")
+        task_create(subject="C", description="D")
+        result = task_update(taskId="1", addBlocks=["2"], addBlockedBy=["3"])
+        assert "addBlocks" in result
+        assert "addBlockedBy" in result
+
+
+class TestTaskListFunction:
+    def test_empty_list(self):
+        result = task_list()
+        assert result == "No tasks found."
+
+    def test_list_with_tasks(self):
+        task_create(subject="Task A", description="D")
+        result = task_list()
+        assert "Tasks (1):" in result
+        assert "#1" in result
+        assert "Task A" in result
+
+    def test_list_with_owner(self):
+        task_create(subject="T", description="D")
+        # Manually set owner via update
+        task_update(taskId="1", owner="alice")
+        result = task_list()
+        assert "(owner: alice)" in result
+
+    def test_list_with_active_blockers(self):
+        task_create(subject="Blocker", description="D")
+        task_create(subject="Blocked", description="D")
+        task_update(taskId="2", addBlockedBy=["1"])
+        result = task_list()
+        assert "[blocked by:" in result
+
+
+class TestTaskGetFunction:
+    def test_get_existing_task(self):
+        task_create(subject="My Task", description="A description")
+        result = task_get(taskId="1")
+        assert "Task #1: My Task" in result
+        assert "Status: pending" in result
+        assert "Description: A description" in result
+        assert "Created:" in result
+
+    def test_get_nonexistent_task(self):
+        result = task_get(taskId="999")
+        assert "Task not found: #999" in result
+
+    def test_get_invalid_task_id(self):
+        result = task_get(taskId="abc")
+        assert "Error" in result
+        assert "Invalid taskId" in result
+
+    def test_get_with_active_form(self):
+        task_create(subject="T", description="D", activeForm="Working")
+        result = task_get(taskId="1")
+        assert "Active form: Working" in result
+
+    def test_get_with_owner(self):
+        task_create(subject="T", description="D")
+        task_update(taskId="1", owner="bob")
+        result = task_get(taskId="1")
+        assert "Owner: bob" in result
+
+    def test_get_with_blocks(self):
+        task_create(subject="A", description="D")
+        task_create(subject="B", description="D")
+        task_update(taskId="1", addBlocks=["2"])
+        result = task_get(taskId="1")
+        assert "Blocks:" in result
+
+    def test_get_with_blocked_by(self):
+        task_create(subject="A", description="D")
+        task_create(subject="B", description="D")
+        task_update(taskId="2", addBlockedBy=["1"])
+        result = task_get(taskId="2")
+        assert "Blocked by:" in result
+
+    def test_get_with_metadata(self):
+        task_create(subject="T", description="D", metadata={"p": "high"})
+        result = task_get(taskId="1")
+        assert "Metadata:" in result

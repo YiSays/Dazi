@@ -245,18 +245,24 @@ def _step_mcp(console: Console, current: DaziSettings) -> dict[str, dict]:
         console.print("[red]  JSON must be an object (dict).[/red]")
         return existing
 
+    # Unwrap standard MCP format: {"mcpServers": {...}}
+    if "mcpServers" in parsed and isinstance(parsed.get("mcpServers"), dict):
+        parsed = parsed["mcpServers"]
+    elif "mcp_servers" in parsed and isinstance(parsed.get("mcp_servers"), dict):
+        parsed = parsed["mcp_servers"]
+
     merged = {**existing, **parsed}
     console.print(f"[green]  ✓[/green] {len(merged)} server(s) configured")
     return merged
 
 
-def _step_dazimd(console: Console) -> None:
+def _step_dazimd(console: Console, *, dazimd_path: Path | None = None) -> None:
     """Step 6: DAZI.md template creation."""
     console.print()
     console.print("[bold cyan]6. DAZI.md[/bold cyan] (optional)")
     console.print("[dim]  Project-specific instructions loaded into every conversation.[/dim]")
 
-    dazimd_path = Path.home() / "DAZI.md"
+    dazimd_path = dazimd_path or Path.home() / ".dazi" / "DAZI.md"
     if dazimd_path.exists():
         console.print(f"[dim]  Already exists: {dazimd_path}[/dim]")
         if not Confirm.ask("  Overwrite?", default=False):
@@ -268,14 +274,61 @@ def _step_dazimd(console: Console) -> None:
     template = """\
 # DAZI.md — Your Global Instructions
 
-<!-- Add your personal coding preferences and instructions here. -->
-<!-- This file is loaded every time you start DAZI. -->
+<!-- This file is loaded as the lowest-priority instruction layer -->
+<!-- for every DAZI session. Project-level files override this. -->
+<!-- Priority: DAZI.local.md (400) > DAZI.md (300) > this file (100) -->
+<!-- Supports @include directives to compose from other files. -->
+<!-- Example: @include ~/dazi/rules/coding-style.md -->
+<!-- -->
+<!-- HTML comments (like this) are invisible to the LLM. -->
+<!-- Visible text below is injected into the system prompt. -->
+<!-- Keep visible text concise — every token counts. -->
+
+My name is DAZI (Develop Autonomously, Zero Interruption).
+I am a terminal-based AI coding assistant built to help with software
+engineering tasks: writing and editing code, debugging, refactoring,
+running commands, and coordinating multi-agent teams.
+
+## File Locations
+Project-level (inside `.dazi/` under project root):
+- `settings.json` — project settings
+- `plans/plan.md` — plan mode output
+- `tasks/default/*.json` — task files
+- `teams/<name>/config.json` — team configuration
+- `teams/<name>/inboxes/*.json` — agent mailboxes
+- `memory/MEMORY.md` — memory index
+- `memory/*.md` — individual memory files
+- `skills/<name>/SKILL.md` — project skill definitions
+- `background/*.output` — background task output
+- `worktrees/<slug>/` — git worktree directories
+User-level (under `~/.dazi/`):
+- `settings.json` — global user settings
+- `DAZI.md` — this file (global instructions)
+- `skills/<name>/SKILL.md` — user skill definitions
+Project root:
+- `DAZI.md` — project instructions (priority 300)
+- `DAZI.local.md` — private project instructions (priority 400)
+- `.env` — environment variables
+
+## About the User
+<!-- Tell DAZI about yourself so responses are tailored -->
+<!-- e.g., "Senior Python developer working on web backends" -->
 
 ## Coding Style
-<!-- e.g., "Prefer functional style, avoid classes unless needed" -->
+<!-- e.g., "Prefer functional style over OOP" -->
+<!-- e.g., "Use type hints everywhere. No Any without a comment." -->
 
-## Preferences
+## Tools and Environment
 <!-- e.g., "Always use uv for Python package management" -->
+<!-- e.g., "Use ruff for linting and formatting" -->
+
+## Communication Preferences
+<!-- e.g., "When I paste an error, always try to fix it — don't just explain" -->
+<!-- e.g., "Show me the diff summary, not the full file content" -->
+
+## Conventions
+<!-- e.g., "Use snake_case for Python, camelCase for TypeScript" -->
+<!-- e.g., "Keep functions under 30 lines" -->
 """
     dazimd_path.write_text(template, encoding="utf-8")
     console.print(f"[green]  ✓[/green] Created {dazimd_path}")
