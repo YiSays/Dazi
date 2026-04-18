@@ -18,7 +18,7 @@ from dazi._singletons import (
     task_store,
 )
 from dazi.background import BackgroundTaskStatus
-from dazi.dazimd import DaziMdFile, merge_dazimd_content
+from dazi.dazimd import merge_dazimd_content
 from dazi.graph import PLAN_MODE, _get_effective_rules
 from dazi.hooks import HookEvent, HookResult
 from dazi.llm import _get_model_name
@@ -104,7 +104,10 @@ def list_memories_table() -> None:
 # ─────────────────────────────────────────────────────────
 
 
-def show_dazimd_files(dazimd_files: list[DaziMdFile]) -> None:
+def show_dazimd_files() -> None:
+    from dazi.prompt_builder import prompt_builder
+
+    dazimd_files = prompt_builder.dazimd_files
     if not dazimd_files:
         console.print("[dim]No DAZI.md files loaded.[/dim]")
         return
@@ -675,7 +678,6 @@ def print_welcome_message(
     *,
     skill_count: int,
     team_count: int,
-    dazimd_files: list,
 ) -> None:
     """Print the welcome message with command list and session stats."""
     import dazi.repl_teams as _teams
@@ -684,6 +686,7 @@ def print_welcome_message(
         memory_store,
     )
     from dazi.llm import _get_model_name
+    from dazi.prompt_builder import prompt_builder
     from dazi.tokenizer import get_context_window
 
     # console.print("[dim]Type /help for commands. Tab to autocomplete. Ctrl+Q to quit.[/dim]")
@@ -699,5 +702,5 @@ def print_welcome_message(
         f"Memories: {len(memory_store.list_all())} | Tasks: {len(_cur_task_store.list_all())} | "
         f"Background: {len(background_manager.list_active())} active | Skills: {skill_count} | "
         f"Teams: {team_count} | "
-        f"DAZI.md: {len(dazimd_files)} file(s)[/dim]"
+        f"DAZI.md: {len(prompt_builder.dazimd_files)} file(s)[/dim]"
     )

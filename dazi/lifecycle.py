@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 from rich.console import Console
@@ -12,11 +13,26 @@ from dazi._singletons import (
     cost_tracker,
     mcp_manager,
     proactive_manager,
+    settings_manager,
+    skill_registry,
     teammate_runner,
     worktree_manager,
 )
 from dazi.dazimd import DaziMdFile, discover_dazimd_files, merge_dazimd_content
 from dazi.prompt_builder import prompt_builder
+
+
+# ─────────────────────────────────────────────────────────
+# SUBSYSTEM LOAD RESULT
+# ─────────────────────────────────────────────────────────
+
+
+@dataclass
+class SubsystemLoadResult:
+    """Result from loading/reloading all subsystems."""
+
+    dazimd_files: list[DaziMdFile]
+    skill_count: int
 
 
 def load_dazimd(*, console: Console) -> list[DaziMdFile]:
@@ -26,14 +42,40 @@ def load_dazimd(*, console: Console) -> list[DaziMdFile]:
 
     if files:
         merged = merge_dazimd_content(files)
-        prompt_builder.set_dazimd_content(merged)
+        prompt_builder.set_dazimd_content(merged, files=files)
         console.print(f"[dim]Loaded {len(files)} DAZI.md file(s):[/dim]")
         for f in files:
             console.print(f"  [dim]{f.path} (priority: {f.priority})[/dim]")
     else:
+        prompt_builder.set_dazimd_content("", files=[])
         console.print("[dim]No DAZI.md files found.[/dim]")
 
     return files
+
+
+async def load_subsystems(*, console: Console) -> SubsystemLoadResult:
+    """Load/reload all runtime subsystems: DAZI.md, settings, skills, MCP.
+
+    Safe to call at startup (initial load) and at runtime (/reload, /onboard).
+    MCP disconnect is a no-op when nothing is connected.
+    """
+    # DAZI.md — prints "[dim]Loaded N file(s)[/dim]" internally
+    dazimd_files = load_dazimd(console=console)
+
+    # Settings — 3-layer merge (DEFAULT → USER → PROJECT)
+    settings_manager.reload()
+
+    # Skills
+    skill_count = skill_registry.reload()
+
+    # MCP servers — disconnect is no-op on first call
+    await mcp_manager.disconnect_all()
+
+    from dazi.graph import connect_mcp_servers
+
+    await connect_mcp_servers()
+
+    return SubsystemLoadResult(dazimd_files=dazimd_files, skill_count=skill_count)
 
 
 async def cleanup_on_exit(

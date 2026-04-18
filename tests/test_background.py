@@ -148,3 +148,56 @@ class TestBackgroundTaskManager:
         output = manager.get_output(task_id)
         assert "output_test" in output
         manager.reset()
+
+    @pytest.mark.asyncio
+    async def test_completion_event_fires_on_task_exit(self, manager: BackgroundTaskManager):
+        """The completion event should be set when a background task finishes."""
+        event = manager.completion_event
+        assert not event.is_set()
+
+        task_id = await manager.submit("echo fast_complete")
+        # Wait for the event to fire (timeout after 5s)
+        try:
+            await asyncio.wait_for(event.wait(), timeout=5.0)
+        except TimeoutError:
+            pytest.fail("completion event did not fire within 5 seconds")
+
+        assert event.is_set()
+        task = manager.check_sync(task_id)
+        assert task is not None
+        assert task.is_terminal
+        manager.reset()
+
+    @pytest.mark.asyncio
+    async def test_completion_event_clears_after_collect(self, manager: BackgroundTaskManager):
+        """collect_completed() should clear the event so it can be awaited again."""
+        await manager.submit("echo clear_test")
+
+        # Wait for the completion event to fire (more reliable than polling is_terminal)
+        event = manager.completion_event
+        try:
+            await asyncio.wait_for(event.wait(), timeout=5.0)
+        except TimeoutError:
+            pytest.fail("completion event did not fire within 5 seconds")
+
+        assert event.is_set()
+
+        # Collect — should clear the event
+        completed = manager.collect_completed()
+        assert len(completed) >= 1
+        assert not event.is_set()
+        manager.reset()
+
+    @pytest.mark.asyncio
+    async def test_completion_event_not_set_while_running(self, manager: BackgroundTaskManager):
+        """Event should remain unset while a long task is still running."""
+        task_id = await manager.submit("sleep 10")
+        await asyncio.sleep(0.1)  # Let it start
+
+        event = manager.completion_event
+        # Should not be set yet (task runs for 10s)
+        assert not event.is_set()
+
+        # Cancel it to clean up
+        await manager.cancel(task_id)
+        manager.reset()

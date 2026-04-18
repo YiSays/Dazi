@@ -1,9 +1,9 @@
-"""Tests for dazi/lifecycle.py — load_dazimd, cleanup_on_exit."""
+"""Tests for dazi/lifecycle.py — load_dazimd, load_subsystems, cleanup_on_exit."""
 
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, call
 
 import pytest
 from rich.console import Console
@@ -53,7 +53,7 @@ class TestLoadDazimd:
         result = mod.load_dazimd(console=console)
 
         assert result == [mock_file]
-        mock_pb.set_dazimd_content.assert_called_once_with("merged")
+        mock_pb.set_dazimd_content.assert_called_once_with("merged", files=[mock_file])
 
     def test_no_files(self, monkeypatch):
         import dazi.lifecycle as mod
@@ -68,7 +68,96 @@ class TestLoadDazimd:
         result = mod.load_dazimd(console=console)
 
         assert result == []
-        mock_pb.set_dazimd_content.assert_not_called()
+        mock_pb.set_dazimd_content.assert_called_once_with("", files=[])
+
+
+class TestLoadSubsystems:
+    """Tests for the shared load_subsystems() function."""
+
+    @pytest.mark.asyncio
+    async def test_calls_all_subsystems(self, monkeypatch):
+        """load_subsystems calls DAZI.md, settings, skills, and MCP in order."""
+        import dazi.lifecycle as mod
+
+        console = Console(file=MagicMock(), force_terminal=False)
+
+        mock_file = MagicMock()
+        monkeypatch.setattr(mod, "load_dazimd", MagicMock(return_value=[mock_file]))
+        mock_settings = MagicMock()
+        monkeypatch.setattr(mod, "settings_manager", mock_settings)
+        mock_skills = MagicMock()
+        mock_skills.reload.return_value = 7
+        monkeypatch.setattr(mod, "skill_registry", mock_skills)
+        mock_mcp = MagicMock(disconnect_all=AsyncMock())
+        monkeypatch.setattr(mod, "mcp_manager", mock_mcp)
+        monkeypatch.setattr("dazi.graph.connect_mcp_servers", AsyncMock())
+
+        result = await mod.load_subsystems(console=console)
+
+        assert result.dazimd_files == [mock_file]
+        assert result.skill_count == 7
+        mod.load_dazimd.assert_called_once_with(console=console)
+        mock_settings.reload.assert_called_once()
+        mock_skills.reload.assert_called_once()
+        mock_mcp.disconnect_all.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_no_dazimd_files(self, monkeypatch):
+        """Returns empty dazimd_files when no DAZI.md files found."""
+        import dazi.lifecycle as mod
+
+        console = Console(file=MagicMock(), force_terminal=False)
+
+        monkeypatch.setattr(mod, "load_dazimd", MagicMock(return_value=[]))
+        monkeypatch.setattr(mod, "settings_manager", MagicMock())
+        monkeypatch.setattr(mod, "skill_registry", MagicMock(reload=MagicMock(return_value=0)))
+        monkeypatch.setattr(mod, "mcp_manager", MagicMock(disconnect_all=AsyncMock()))
+        monkeypatch.setattr("dazi.graph.connect_mcp_servers", AsyncMock())
+
+        result = await mod.load_subsystems(console=console)
+
+        assert result.dazimd_files == []
+        assert result.skill_count == 0
+
+    @pytest.mark.asyncio
+    async def test_returns_subsystem_load_result(self, monkeypatch):
+        """Returns a SubsystemLoadResult dataclass."""
+        import dazi.lifecycle as mod
+
+        console = Console(file=MagicMock(), force_terminal=False)
+
+        files = [MagicMock(), MagicMock()]
+        monkeypatch.setattr(mod, "load_dazimd", MagicMock(return_value=files))
+        monkeypatch.setattr(mod, "settings_manager", MagicMock())
+        monkeypatch.setattr(mod, "skill_registry", MagicMock(reload=MagicMock(return_value=3)))
+        monkeypatch.setattr(mod, "mcp_manager", MagicMock(disconnect_all=AsyncMock()))
+        monkeypatch.setattr("dazi.graph.connect_mcp_servers", AsyncMock())
+
+        result = await mod.load_subsystems(console=console)
+
+        assert isinstance(result, mod.SubsystemLoadResult)
+        assert result.dazimd_files == files
+        assert result.skill_count == 3
+
+    @pytest.mark.asyncio
+    async def test_order_dazimd_before_settings(self, monkeypatch):
+        """DAZI.md is loaded before settings reload."""
+        import dazi.lifecycle as mod
+
+        console = Console(file=MagicMock(), force_terminal=False)
+        call_order = []
+
+        monkeypatch.setattr(mod, "load_dazimd", MagicMock(side_effect=lambda **kw: call_order.append("dazimd") or []))
+        mock_settings = MagicMock()
+        mock_settings.reload.side_effect = lambda: call_order.append("settings")
+        monkeypatch.setattr(mod, "settings_manager", mock_settings)
+        monkeypatch.setattr(mod, "skill_registry", MagicMock(reload=MagicMock(side_effect=lambda: call_order.append("skills") or 0)))
+        monkeypatch.setattr(mod, "mcp_manager", MagicMock(disconnect_all=AsyncMock(side_effect=lambda: call_order.append("mcp_disconnect"))))
+        monkeypatch.setattr("dazi.graph.connect_mcp_servers", AsyncMock(side_effect=lambda: call_order.append("mcp_connect")))
+
+        await mod.load_subsystems(console=console)
+
+        assert call_order == ["dazimd", "settings", "skills", "mcp_disconnect", "mcp_connect"]
 
 
 class TestCleanupOnExit:

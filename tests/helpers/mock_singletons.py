@@ -41,6 +41,7 @@ def patch_singletons(monkeypatch, tmp_path: Path) -> None:
         "skill_registry": SkillRegistry(),
         "proactive_manager": ProactiveManager(),
         "task_store": TaskStore(data_dir / "tasks", list_id="default"),
+        "team_task_store": None,
         "background_manager": BackgroundTaskManager(data_dir / "background"),
         "team_manager": TeamManager(),
         "teammate_runner": TeammateRunner(),
@@ -69,6 +70,8 @@ def patch_singletons(monkeypatch, tmp_path: Path) -> None:
             "cost_tracker",
             "mcp_manager",
             "proactive_manager",
+            "settings_manager",
+            "skill_registry",
             "teammate_runner",
             "worktree_manager",
         ],
@@ -99,6 +102,19 @@ def patch_singletons(monkeypatch, tmp_path: Path) -> None:
         "dazi.repl_teams": [
             "mailbox",
             "team_manager",
+            "team_task_store",
+        ],
+        "dazi.main": [
+            "autonomous_teammate",
+            "background_manager",
+            "cost_tracker",
+            "mcp_manager",
+            "memory_store",
+            "proactive_manager",
+            "settings_manager",
+            "task_store",
+            "team_manager",
+            "worktree_manager",
         ],
     }
 

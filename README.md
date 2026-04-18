@@ -1,289 +1,256 @@
-# DAZI — Develop Autonomously, Zero Interruption
-
-DAZI is a terminal-based AI coding assistant that runs in your shell. It reads your codebase, plans changes, writes and edits files, runs commands, and manages multi-agent teams — all from a single REPL.
+<div align="center">
 
 ```
-$ dazi
-╭──────────────────────────────────────────╮
-│  DAZI — Develop Autonomously, Zero       │
-│          Interruption                    │
-│  Model: gpt-4o  |  Mode: execute        │
-│  DAZI.md: 2 file(s) loaded              │
-╰──────────────────────────────────────────╯
->
+██████╗   █████╗  ███████╗ ██████╗
+██╔══██╗ ██╔══██╗ ╚══███╔╝ ╚═██╔═╝
+██║  ██║ ███████║   ███╔╝    ██║  
+██║  ██║ ██╔══██║  ███╔╝     ██║  
+██████╔╝ ██║  ██║ ███████╗ ██████╗
+╚═════╝  ╚═╝  ╚═╝ ╚══════╝ ╚═════╝
 ```
 
-## Quick Start
+### **Agent = Model + Harness.**
+
+DAZI is a harness engineering framework for AI coding agents.
+System prompts, guardrails, feedback loops, verification, persistent corrections —
+all in one terminal REPL. Works with any OpenAI-compatible model.
+
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![uv](https://img.shields.io/badge/uv-managed-6E9F18?logo=uv&logoColor=white)](https://docs.astral.sh/uv/)
+[![Version](https://img.shields.io/badge/version-0.3.1-00ADD8)](https://github.com/YiSays/DAZI)
+
+</div>
+
+---
+
+![DAZI Demo](docs/demo.gif)
 
 ```bash
-# Install dependencies
+git clone https://github.com/YiSays/DAZI.git
+cd dazi
 uv sync
-
-# Configure API key
-cp .env.example .env
-# Edit .env with your OPENAI_API_KEY
-
-# Run
-uv run python -m dazi
-```
-## QUICK DEMO
-
-![DAZI DEMO](docs/demo.gif)
-
-## What's New in v0.3.0
-
-- **Onboarding wizard** — First-run setup for API key, model, and base URL. Re-run anytime with `/onboard`.
-- **MCP disconnect resilience** — Force-cleanup of stale anyio cancel scopes after MCP disconnect, preventing `CancelledError` crashes on `/reload`.
-- **Streaming display** — Rich `Live` + `Spinner` for LLM response streaming, replacing static Markdown panels.
-- **Terminal utilities** — New `terminal.py` module for display-width calculation and prompt line counting with wide Unicode support.
-- **Code quality** — `StrEnum` migration, `ruff` formatting pass across all modules, import reordering, and dead code removal.
-- **Test coverage** — New `test_mcp_lifecycle.py` for MCP connection lifecycle; expanded tests across 70 files.
-
-## Architecture
-
-DAZI is built on a LangGraph state machine with this core loop:
-
-```
-User Input → Check Compact → Call LLM → Check Permissions → Execute Tools → Output
-                  ↑                                                        │
-                  └──────── Background Notifications ←─────────────────────┘
+uv run dazi            # Interactive setup wizard on first launch
 ```
 
-Each turn: the LLM decides which tools to call, the permission system checks if they're allowed, tools execute (with concurrency batching), and results feed back to the LLM.
+*Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/). Works with OpenAI, DeepSeek, OpenRouter, Ollama, or any OpenAI-compatible API.*
 
-## Core Components
+---
 
-### Plan Mode — Think Before You Code
+## The 90-Second Fix
 
-<!-- GIF placeholder: plan-mode.gif — Shows /plan command, read-only exploration, plan file creation, then /go to execute -->
-
-Switch to a read-only mode where you can only explore the codebase and write a plan. No files are modified until you explicitly exit with `/go`.
-
-```bash
-> /plan
-# Now in PLAN mode — only read-only tools available
-> Explore the auth module and write a plan for adding OAuth support
-
-> /go
-# Now in EXECUTE mode — all tools enabled, plan is implemented
-```
-
-The plan is stored at `.dazi/plan` as markdown. In plan mode, write and destructive tools are stripped from the tool list entirely — the LLM physically cannot make changes.
-
-| Command | Action |
-|---------|--------|
-| `/plan` | Enter plan mode (read-only) |
-| `/go` | Exit plan mode, resume full execution |
-
-### Tasks — Track Work With Dependencies
-
-<!-- GIF placeholder: tasks.gif — Shows task creation, dependency setup, task board listing, and completion -->
-
-A persistent task board for tracking multi-step work. Tasks support dependencies — a task won't start until its blockers are resolved.
-
-```bash
-> Create tasks for refactoring the auth module:
-  1. "Extract token validation" (pending)
-  2. "Add OAuth providers" (pending, blocked by #1)
-  3. "Update tests" (pending, blocked by #2)
-```
-
-Tasks are stored as individual JSON files at `.dazi/tasks/<list_id>/<id>.json`, so a corrupted file doesn't take down the entire board.
-
-| Command | Action |
-|---------|--------|
-| `/tasks` | Show task board |
-| `/task <id>` | Get full task details |
-
-### Hooks — Extend Tool Behavior
-
-<!-- GIF placeholder: hooks.gif — Shows hook registration, tool execution with hook output, and hook listing -->
-
-Run custom logic before or after tool execution. Hooks can modify tool inputs/outputs, override permission decisions, or block execution entirely.
-
-**Hook events:**
-- `PRE_TOOL_USE` — modify input or block before execution
-- `POST_TOOL_USE` — modify output after execution
-- `POST_TOOL_USE_FAILURE` — react to errors
-- `USER_PROMPT_SUBMIT` — preprocess user input
-- `SESSION_START` — run setup logic
-
-Hooks are priority-ordered (lower runs first). Multiple hooks can chain, with later hooks overriding earlier ones.
-
-| Command | Action |
-|---------|--------|
-| `/hooks` | List registered hooks |
-
-### Permissions & Rules — Control What Tools Can Do
-
-<!-- GIF placeholder: rules.gif — Shows /allow and /deny commands, rule listing, and permission prompt during tool use -->
-
-Every tool call goes through a permission check. You control access with allow/deny rules that support exact match, prefix, wildcard, and glob patterns.
-
-```bash
-> /allow git push:*       # Allow all git push variants
-> /deny rm -rf *          # Never allow recursive delete
-> /allow npm:*            # Allow all npm commands
-```
-
-**Priority chain:** CLI rules > Settings rules > Default mode behavior. Within the same source, deny always wins over allow.
-
-**Permission modes:**
-- `default` — ask before destructive actions
-- `plan` — read-only (no write/destructive tools)
-- `acceptEdits` — auto-approve file edits, ask for shell commands
-- `bypass` — allow everything
-
-| Command | Action |
-|---------|--------|
-| `/rules` | List all permission rules |
-| `/allow <pattern>` | Add allow rule |
-| `/deny <pattern>` | Add deny rule |
-
-### Cost Tracking — Know What You Spend
-
-<!-- GIF placeholder: cost.gif — Shows /cost command with per-model breakdown and session totals -->
-
-Track token usage and estimated cost for every LLM call in the session. Costs are broken down by model with input/output token counts.
-
-```bash
-> /cost
-
-Session Cost
-┏━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┓
-┃ Model     ┃ Requests ┃ In Tokens ┃ Out Tokens┃ Cost (USD)  ┃
-┡━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━┩
-│ gpt-4o    │ 12       │ 45,230    │ 8,421     │ $0.1827     │
-│ gpt-4o-m… │ 3        │ 12,100    │ 2,300     │ $0.0085     │
-├───────────┼──────────┼───────────┼───────────┼─────────────┤
-│ Total     │ 15       │ 57,330    │ 10,721    │ $0.1912     │
-└───────────┴──────────┴───────────┴───────────┴─────────────┘
-```
-
-| Command | Action |
-|---------|--------|
-| `/cost` | Show current session cost |
-| `/cost last` | Show previous session cost |
-
-### Background Tasks — Non-Blocking Execution
-
-<!-- GIF placeholder: background.gif — Shows starting a long build in background, continuing work, then checking the result -->
-
-Run long commands without blocking the conversation. Start a build, continue coding, check results when ready.
-
-```bash
-> Run "npm run build" in the background
-# Task bg-001 started — you can keep working
-
-> Check the build status
-# bg-001: completed (exit code 0, 12s)
-
-> /bg
-# List all background tasks
-```
-
-Background tasks capture stdout/stderr to `.dazi/background/<task_id>.output`. Completed tasks are reported after each turn.
-
-| Command | Action |
-|---------|--------|
-| `/bg` | List background tasks |
-| `/bg <id>` | Check specific task output |
-
-### Settings — Three-Layer Configuration
-
-<!-- GIF placeholder: settings.gif — Shows /settings with source annotations, editing settings.json, and /reload -->
-
-Configuration merges from three layers, with higher-priority layers overriding lower ones:
+*Stop pasting stack traces into browser tabs.*
 
 ```
-DEFAULT (hardcoded) → USER (~/.dazi/settings.json) → PROJECT (.dazi/settings.json)
+It's 11 PM. Your build is failing. You don't know why.
+
+❯ /plan
+❯ The CI pipeline is failing on the auth tests. Explore the test suite
+  and the auth module, then write me a plan to fix it.
+
+  DAZI reads 23 files across your codebase...
+  DAZI writes a plan with 4 steps.
+
+❯ /go
+
+  Step 1: Fix the expired token mock in test_auth.py
+  Step 2: Update the middleware to handle None refresh tokens
+  Step 3: Add edge case test for concurrent session expiry
+  Step 4: Run the test suite — all 47 tests pass
+
+❯ /commit
+
+  fix(auth): handle expired refresh tokens in middleware
+
+  2 files changed, 18 insertions(+), 3 deletions(-)
+
+Done. In 90 seconds. Without opening a browser.
 ```
 
-**Merge strategy:**
-- Primitives (strings, bools, ints): higher layer wins
-- Lists (allow/deny rules): concatenate and deduplicate
-- Dicts (env vars, MCP servers): shallow merge, higher layer wins per-key
+Plan mode explores, read-only. Execute mode implements. Skills automate the repetitive parts.
 
-```bash
-> /settings
+---
 
-model: gpt-4o                  [project]
-api_base_url: https://api...   [user]
-auto_compact: true             [default]
-max_concurrent_tools: 5        [default]
+## Why DAZI?
+
+*Because your terminal is where the code lives. Your AI should live there too.*
+
+| | Browser Chat | IDE Copilot | **DAZI** |
+|---|---|---|---|
+| Reads your full codebase | Copy-paste fragments | Open files only | Auto-discovers project |
+| Plans before coding | No | No | Plan Mode (read-only) |
+| Runs commands | No | Separate terminal | Built-in, parallel |
+| Multi-agent teams | No | No | Coordinate 3, 5, 10 agents |
+| Works offline | No | Varies | Yes, with local models |
+| Model choice | Locked in | Locked in | Any OpenAI-compatible API |
+| Knows your spend | No | No | Per-session cost tracking |
+| Remembers across sessions | No | Partial | Persistent memory store |
+| Built on harness engineering | No | Partial | Full control stack |
+
+*DAZI isn't another chatbot. It's a harness engineering framework — the control layer that makes AI agents reliable.*
+
+---
+
+## Built on Harness Engineering
+
+*Prompt engineering tells the model what to do. Harness engineering makes sure it actually does it.*
+
+The model is just one component. The harness is everything else: the guardrails that prevent destructive actions, the verification loops that catch mistakes, the persistent memory that carries corrections forward, the instruction files that encode team conventions.
+
+| Harness Layer | What It Does | DAZI Feature |
+|---|---|---|
+| **Feedforward guides** | Steer the agent before it acts | DAZI.md, skills, system prompts |
+| **Computational controls** | Fast, deterministic checks | Permissions, hooks, plan mode |
+| **Feedback sensors** | Observe after the agent acts | POST_TOOL_USE hooks, `/review` |
+| **Steering corrections** | Permanently eliminate failure modes | Memory (`/remember`), DAZI.md updates |
+| **Verification-first** | Explore read-only, then execute | `/plan` → `/go` workflow |
+| **Generator/Evaluator split** | Separate creating from reviewing | Multi-agent teams, `/review` skill |
+
+The mindset shift: when the agent makes a mistake, don't just fix the output. Improve the harness so that specific failure can't happen the same way again. Add a rule to DAZI.md. Create a hook. Save a memory. **The harness gets stronger every session.**
+
+Read the full [Harness Engineering with Dazi](docs/harness-engineering.md) deep-dive — a module-by-module breakdown of how every Dazi component maps to the formal harness engineering taxonomy.
+
+---
+
+## How It Works
+
+Every user input follows the same pipeline — from keystroke to response, through the full harness stack:
+
+```
+┌───────────────────────────────────────────────────────────────────────────┐
+│                              DAZI REPL LOOP                               │
+├───────────────────────────────────────────────────────────────────────────┤
+│                                                                           │
+│  ┌──▶ User Input ──▶ /command? ──yes──▶ handle_command() ──▶ continue     │
+│  │                       │                                                │
+│  │                       no                                               │
+│  │                       ▼                                                │
+│  │                    HumanMessage                                        │
+│  │                       ▼                                                │
+│  │   ┌────────────── run_graph_turn() ────────────────────────────────┐   │
+│  │ ┌─▶                                                                │ │ │
+│  │ │ │  ┌──────────────── System Prompt Builder ───────────────────┐  │ │ │
+│  │ │ │  │ STATIC (cached):             DYNAMIC (per-turn):         │  │ │ │
+│  │ │ │  │ ├─ Agent identity            ├─ Session guidance (mode)  │  │ │ │
+│  │ │ │  │ ├─ Task instructions         ├─ Skills                   │  │ │ │
+│  │ │ │  │ ├─ Tool descriptions         ├─ Relevant memories        │  │ │ │
+│  │ │ │  │ ├─ Tone & style              ├─ Environment info         │  │ │ │
+│  │ │ │  │ └─ DAZI.md rules             └─ Permission rules         │  │ │ │
+│  │ │ │  └────────────────┬─────────────────────────────────────────┘  │ │ │
+│  │ │ │                   ▼                                            │ │ │
+│  │ │ │  ┌─────────── LangGraph Pipeline ───────────────────────────┐  │ │ │
+│  │ │ │  │                                                          │  │ │ │
+│  │ │ │  │  check_compact ──▶ call_llm ◀─────────────────────────┐  │  │ │ │
+│  │ │ │  │                       │                               │  │  │ │ │
+│  │ │ │  │         ┌─────────────┴──────────────┐                │  │  │ │ │
+│  │ │ │  │         ▼ (no tools)                 ▼ (tools)        │  │  │ │ │
+│  │ │ │  │  Streamed Response           check_permissions        │  │  │ │ │
+│  │ │ │  │  (Rich Live display)               │                  │  │  │ │ │
+│  │ │ │  │         │                          ├─ PRE_TOOL_USE    │  │  │ │ │
+│  │ │ │  │         │                          ▼                  │  │  │ │ │
+│  │ │ │  │         │                    execute_tools            │  │  │ │ │
+│  │ │ │  │         │                          ├─ SAFE  ──▶ parallel │  │ │ │
+│  │ │ │  │         │                          ├─ WRITE ──▶ serial   │  │ │ │
+│  │ │ │  │         │                          └─ POST_TOOL_USE      │  │ │ │
+│  │ │ │  │         │                          ▼                  │  │  │ │ │
+│  │ │ │  │         │                    ToolMessages ────────────┘  │  │ │ │
+│  │ │ │  │         │                    (loop if tool calls)        │  │ │ │
+│  │ │ │  │         └─────────────┬──────────────┘                   │  │ │ │
+│  │ │ │  │                       ▼                                  │  │ │ │
+│  │ │ │  │                 Auto-compact                             │  │ │ │
+│  │ │ │  │                 (if context > threshold)                 │  │ │ │
+│  │ │ │  └───────────────────────┬──────────────────────────────────┘  │ │ │
+│  │ │ └──────────────────────────┼─────────────────────────────────────┘ │ │
+│  │ │                            ▼                                       │ │
+│  │ │              State Update (messages, mode)                         │ │
+│  │ │                            │                                       │ │
+│  │ │                            ▼                                       │ │
+│  │ └── inject tick ◀── yes ── Proactive Tick?                           │ │
+│  │                              │                                       │ │
+│  │                              no                                      │ │
+│  │                              ▼                                       │ │
+│  │    ┌────────────────────── Prompt ──────────────────────────┐        │ │
+│  │    │ Status Bar: mode · tokens · team · bg                  │◀───────┘ │
+│  │    │ Prompt:     team-name ❯                                │          │
+│  │    └─────────────────────────┬──────────────────────────────┘          │
+│  │                              │                                         │
+│  └────── User types next input ─┘                                         │
+│                                                                           │
+├───────────────────────────────────────────────────────────────────────────┤
+│ Side Channels:                                                            │
+│ ├─ Background Tasks ── completion_event ──▶ interrupt prompt ──▶ show     │
+│ └─ Multi-Agent Teams ── autonomous scan/claim/execute cycle               │
+└───────────────────────────────────────────────────────────────────────────┘
 ```
 
-| Command | Action |
-|---------|--------|
-| `/settings` | Show all settings with source annotations |
-| `/reload` | Re-read settings files without restart |
+---
 
-**Configurable fields:** `model`, `api_base_url`, `api_key`, `default_mode`, `allow_rules`, `deny_rules`, `env`, `auto_compact`, `auto_memory`, `max_concurrent_tools`, `mcp_servers`.
+## Think Before You Code
 
-### MCP — Model Context Protocol
+*No more "oops, I edited the wrong file."*
 
-<!-- GIF placeholder: mcp.gif — Shows /mcp listing servers, connecting, and using an MCP tool -->
+```
+❯ /plan
+  PLAN MODE — read-only tools only
 
-Connect external tool servers via the Model Context Protocol. MCP tools appear alongside built-in tools and can be used by the LLM like any other tool.
+❯ Explore the payment module and write a plan for adding Stripe integration
 
-```bash
-> /mcp
+  DAZI reads 14 files... writes plan.md
 
-MCP Servers
-┏━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ Server     ┃ Status      ┃ Tools   ┃ Command                        ┃
-┡━━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ filesystem │ connected   │ 4       │ npx @anthropic/mcp-fs          │
-│ github     │ connected   │ 6       │ npx @anthropic/mcp-github      │
-│ database   │ disconnected│ —       │ python mcp_db.py               │
-└────────────┴─────────────┴─────────┴───────────────────────────────┘
+❯ /show
+
+  ## Plan: Stripe Payment Integration
+  1. Add Stripe SDK dependency
+  2. Create PaymentService class in services/payment.py
+  3. Add /api/payments endpoint with validation
+  4. Write integration tests
+
+❯ /go
+  EXECUTE MODE — implementing the plan
 ```
 
-MCP tools are namespaced as `mcp__<server>__<tool>`. Read-only MCP tools are available in plan mode.
+In plan mode, write tools are physically stripped from the tool list. The LLM literally cannot modify your files. Read, explore, plan — then switch to execute when you're ready. This is **verification-first**: the agent explores before it modifies, and you review the plan before any changes land.
 
-Configure servers in `settings.json`:
-```json
-{
-  "mcpServers": {
-    "filesystem": {
-      "command": "npx",
-      "args": ["@anthropic/mcp-fs"],
-      "env": {}
-    }
-  }
-}
+## Build with a Team of Agents
+
+*One problem. Multiple minds. Zero coordination overhead.*
+
+```
+❯ Create a team "refactor" with 3 agents:
+    - "researcher" explores the codebase
+    - "writer" makes the changes
+    - "tester" runs tests
+
+  Team "refactor" created. 3 agents ready.
+
+❯ Create tasks:
+    1. Map all uses of the deprecated API          (pending)
+    2. Refactor to the new API surface              (pending, blocked by #1)
+    3. Run full test suite and fix failures          (pending, blocked by #2)
+
+  researcher claimed task #1...
+  writer waiting (blocked by #1)...
+  researcher finished. writer claimed task #2...
 ```
 
-| Command | Action |
-|---------|--------|
-| `/mcp` | List MCP servers and status |
-| `/mcp <name>` | Show server details |
-| `/mcp connect <name>` | Connect to server |
-| `/mcp disconnect <name>` | Disconnect server |
+Agents share a task board with dependency tracking. They claim work, execute, and report back. You're the team lead — assign, review, coordinate. Or let them self-organize.
 
-### Skills — Reusable Prompt Templates
+## One Command, Zero Repetition
 
-<!-- GIF placeholder: skills.gif — Shows /skills listing, invoking /commit, and the generated commit message -->
+*Turn your best prompts into slash commands.*
 
-Skills are prompt templates stored as markdown files with YAML frontmatter. They turn complex multi-step workflows into single commands.
+**Built-in skills:**
 
-```bash
-> /commit
+| Command | What it does |
+|---------|--------------|
+| `/commit` | Analyze staged changes → conventional commit message |
+| `/review` | Find bugs, security issues, performance problems |
+| `/explain` | Deep-dive into code, architecture, or concepts |
+| `/summarize` | TL;DR of anything in under 200 words |
 
-# The /commit skill:
-# 1. Runs git status and git diff
-# 2. Analyzes changes
-# 3. Generates a conventional commit message
-# 4. Shows the commit for your approval
-```
+**Create your own:**
 
-Skills are discovered from three locations:
-- **Bundled:** Built-in skills (`/commit`, `/review`, `/explain`, `/summarize`)
-- **User-level:** `~/.dazi/skills/*.md` — available in all projects
-- **Project-level:** `.dazi/skills/*.md` — project-specific workflows
-
-Create a custom skill by writing a markdown file:
 ```markdown
+<!-- .dazi/skills/deploy.md -->
 ---
 name: deploy
 description: Deploy to staging
@@ -297,179 +264,169 @@ Deploy the current branch to $environment:
 3. Deploy using `deploy --env $environment`
 ```
 
-| Command | Action |
-|---------|--------|
-| `/skills` | List all available skills |
-| `/skill <name>` | Show skill details |
-| `/<name>` | Invoke a user-invocable skill |
+Then just type `/deploy staging`. Skills are discovered from bundled, user-level (`~/.dazi/skills/`), and project-level (`.dazi/skills/`) locations.
 
-### Agent Teams — Multi-Agent Collaboration
+## Don't Wait. Keep Coding.
 
-<!-- GIF placeholder: teams.gif — Shows /team create, spawning teammates, task assignment, and coordinated work -->
+*Start a build. Keep talking. Check when you're ready.*
 
-Coordinate multiple AI agents working in parallel on a shared codebase. Each team has a shared task board, inter-agent messaging, and a team lead that coordinates work.
+```
+❯ Run "npm run build" in the background
+
+  Task bg-001 started — you can keep working
+
+❯ Now add rate limiting to the API endpoints while that builds
+
+  ...DAZI edits files, runs tests, you keep working...
+
+❯ /bg bg-001
+
+  bg-001: completed (exit code 0, 12s)
+  Output: ✓ 142 modules bundled in 8.4s
+```
+
+## It Remembers So You Don't Have To
+
+*"Use uv, not pip." Say it once. DAZI remembers forever.*
+
+```
+❯ /remember This project uses Python 3.12+ with uv for package management
+
+  Memory saved.
+
+  (In a future session, weeks later:)
+
+❯ How should I add a dependency?
+
+  Use `uv add <package>` — you prefer uv over pip (from memory).
+```
+
+Four memory types cover everything: your role and preferences (`user`), guidance on how to work (`feedback`), project decisions and deadlines (`project`), and pointers to external resources (`reference`).
+
+This is the **steering loop**: when the agent makes a mistake, save the correction as feedback memory. Next session, it loads automatically. The harness gets stronger every time you use it.
+
+## Know What You Spend
+
+*No surprise API bills.*
+
+```
+❯ /cost
+
+Session Cost
+┏━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Model     ┃ Requests ┃ In Tokens ┃ Out Tokens┃ Cost (USD)  ┃
+┡━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│ gpt-4o    │ 12       │ 45,230    │ 8,421     │ $0.1827     │
+│ gpt-4o-m… │ 3        │ 12,100    │ 2,300     │ $0.0085     │
+├───────────┼──────────┴──────────┴───────────┴─────────────┤
+│ Total     │ 15       │ 57,330    │ 10,721    │ $0.1912     │
+└───────────┴──────────┴───────────┴──────────┴─────────────┘
+```
+
+Per-session cost breakdown by model. Check current spend with `/cost`, previous session with `/cost last`.
+
+## Connect Everything
+
+*Filesystems, databases, GitHub, browsers — if there's an MCP server, DAZI talks to it.*
+
+```json
+{
+  "mcpServers": {
+    "filesystem": { "command": "npx", "args": ["@anthropic/mcp-fs"] },
+    "github": { "command": "npx", "args": ["@anthropic/mcp-github"] },
+    "database": { "command": "python", "args": ["mcp_db.py"] }
+  }
+}
+```
+
+MCP tools appear alongside built-in tools, namespaced as `mcp__<server>__<tool>`. Connect, disconnect, and inspect with `/mcp`.
+
+## Conversations Without Limits
+
+*Talk all day. DAZI handles the context window so you don't have to.*
+
+When the conversation approaches the context limit, DAZI automatically compresses old messages — keeping recent context intact. Two strategies: **micro-compact** (fast, replaces old tool results with markers) and **full compact** (LLM-powered summary that preserves intent).
+
+```
+❯ /tokens
+  Tokens: 98,421 / 128,000 (77%) — 29,579 remaining
+
+❯ /compact
+  Compressed 45 messages → 12-message summary
+```
+
+## You're in Control
+
+*Approve, auto-approve, or deny — your rules, your codebase.*
+
+Every tool call goes through a permission check. You decide what's allowed:
 
 ```bash
-> Create a team "refactor" with 3 agents:
-  - "researcher" explores the codebase
-  - "writer" makes the changes
-  - "tester" runs tests
-
-> Assign tasks to the team and let them coordinate
+❯ /allow git push:*       # Allow all git push variants
+❯ /deny rm -rf *          # Never allow recursive delete
+❯ /allow npm:*            # Allow all npm commands
 ```
 
-**Team architecture:**
-- **Team lead:** You (or the main agent) — assigns tasks, reviews work
-- **Teammates:** Sub-agents that claim tasks from the board
-- **Task board:** Shared `.dazi/tasks/<team>/` with dependency tracking
-- **Mailbox:** File-based inter-agent messaging at `.dazi/teams/<team>/inboxes/`
+Four permission modes: `default` (ask before destructive), `plan` (read-only), `acceptEdits` (auto-approve file edits), `bypass` (allow everything). Deny always wins over allow. These aren't just preferences — they're **computational controls** in your harness. Fast, deterministic, no LLM needed.
 
-**Spawn autonomous teammates** that scan the task board, claim available work, execute it, and report back — all without manual coordination.
+---
 
-| Command | Action |
-|---------|--------|
-| `/teams` | List all teams |
-| `/team <name>` | Switch to team context |
-| `/team create <name>` | Create new team |
-| `/team delete <name>` | Delete team |
-| `/inbox` | Check your messages |
-| `/send <agent> <msg>` | Send direct message |
-| `/broadcast <msg>` | Message all teammates |
+## Works With Your Model
 
-### Subagents — Delegate Isolated Tasks
+*Bring your own API key. We don't pick sides.*
 
-<!-- GIF placeholder: subagents.gif — Shows delegating a research task, agent working independently, and returning results -->
+| Provider | Example Models |
+|----------|---------------|
+| OpenAI | GPT-4o, GPT-4o-mini, o1, o3-mini |
+| DeepSeek | DeepSeek-V3, DeepSeek-R1 |
+| OpenRouter | Any model through one endpoint |
+| Ollama | Local models, fully offline |
+| Custom | Any OpenAI-compatible endpoint |
 
-Spawn a sub-agent with a fresh context window to handle a specific task. The sub-agent has no knowledge of the parent conversation — you provide all context in the task description.
+Set your API key, model, and base URL during the interactive setup wizard. Change anytime with `/onboard`.
 
-```bash
-> Delegate "Research the best caching strategy for our API endpoints"
-  to a sub-agent with max 10 turns
+---
+
+## Configuration
+
+Three layers, higher priority wins:
+
+```
+DEFAULT (hardcoded) → USER (~/.dazi/settings.json) → PROJECT (.dazi/settings.json)
 ```
 
-Sub-agents can be scoped to specific tools, preventing them from accessing tools outside their remit.
-
-### Worktrees — Isolated Working Directories
-
-<!-- GIF placeholder: worktree.gif — Shows creating a worktree, parallel agents working without conflicts, and merging results -->
-
-Git worktrees give each agent its own checkout on its own branch. Multiple agents can edit the same files simultaneously without merge conflicts.
-
-```bash
-> Create worktree "feature-auth"
-# Working in .dazi/worktrees/feature-auth/ on branch agent-feature-auth
-
-> (agent works independently)
-
-> Finish worktree "feature-auth" — keep
-# Branch preserved, worktree cleaned up
+**User-level** (`~/.dazi/settings.json`) — applies to all projects:
+```json
+{
+  "model": "gpt-4o",
+  "api_base_url": "https://api.openai.com/v1",
+  "max_concurrent_tools": 5,
+  "mcpServers": {
+    "filesystem": { "command": "npx", "args": ["@anthropic/mcp-fs"] }
+  }
+}
 ```
 
-### Memory — Persistent Knowledge Across Sessions
-
-<!-- GIF placeholder: memory.gif — Shows /remember saving context, /memories listing, and memory auto-injection in a new session -->
-
-Store important context that persists across conversations. Memories are automatically injected into the system prompt when relevant.
-
-```bash
-> /remember This project uses Python 3.12+ with uv for package management
-
-# In a future session:
-> How should I install dependencies?
-# DAZI knows to use `uv` because of the stored memory
+**Project-level** (`.dazi/settings.json`) — shared with your team:
+```json
+{
+  "allow_rules": ["git status", "npm test"],
+  "deny_rules": ["rm -rf *"],
+  "env": { "NODE_ENV": "test" }
+}
 ```
 
-**Memory types:**
-- `user` — Your role, preferences, expertise
-- `feedback` — Guidance on how to approach work
-- `project` — Ongoing initiatives, deadlines, decisions
-- `reference` — Pointers to external resources (dashboards, trackers)
+Primitives: higher layer wins. Lists: concatenate. Dicts: shallow merge. Reload without restart with `/reload`.
 
-Memories are stored as individual `.md` files in the memory directory with YAML frontmatter. An index file (`MEMORY.md`) enables fast lookup.
+---
 
-| Command | Action |
-|---------|--------|
-| `/remember <text>` | Save a memory |
-| `/forget <id>` | Delete a memory |
-| `/memories` | List all memories |
-| `/reindex` | Rebuild memory index |
-
-### Context Compaction — Unlimited Conversation Length
-
-<!-- GIF placeholder: compact.gif — Shows token usage growing, auto-compact triggering, and conversation continuing seamlessly -->
-
-Conversations can grow beyond the context window. DAZI automatically compresses old messages when approaching the limit, keeping recent context intact.
-
-**Two compaction strategies:**
-- **Micro-compact:** Replace old tool results with compact markers (fast, no LLM call)
-- **Full compact:** Use the LLM to summarize old messages (slower, preserves intent)
-
-```bash
-> /tokens
-# Tokens: 98,421 / 128,000 (77%) — 29,579 remaining
-
-> /compact
-# Compressed 45 messages → 12-message summary
-```
-
-A circuit breaker stops compaction after 3 consecutive failures to prevent loops.
-
-| Command | Action |
-|---------|--------|
-| `/compact` | Manual full compact |
-| `/tokens` | Show token usage and context window |
-
-### Proactive Mode — Autonomous Background Operation
-
-<!-- GIF placeholder: proactive.gif — Shows /proactive on, agent working autonomously with tick messages, and pause/resume -->
-
-Enable autonomous operation where DAZI stays active between your inputs, monitoring background tasks and taking initiative.
-
-```bash
-> /proactive on
-# DAZI is now active — it will monitor and act autonomously
-
-# Ctrl+C to pause, type anything to resume
-
-> /proactive off
-```
-
-### DAZI.md — Project-Level Instructions
-
-<!-- GIF placeholder: dazimd.gif — Shows DAZI.md file being loaded, its content displayed, and instructions affecting agent behavior -->
-
-DAZI.md files provide project-specific instructions that shape DAZI's behavior. They're loaded hierarchically and injected into the system prompt.
-
-**Loading priority (highest to lowest):**
-1. `DAZI.local.md` — project root, gitignored (private per-project)
-2. `DAZI.md` — project root (shared with team, checked into git)
-3. `~/.dazi/DAZI.md` — user global (applies to all projects)
-
-```markdown
-<!-- DAZI.md -->
-## Project Rules
-- Always use Python 3.12+ features
-- Follow PEP 8 strictly
-- Use pytest for testing
-- Run `uv run pytest` before committing
-```
-
-DAZI.md supports `@include` directives for composing from multiple files:
-```markdown
-@include .dazi/rules/coding-style.md
-@include .dazi/rules/testing.md
-```
-
-| Command | Action |
-|---------|--------|
-| `/dazimd` | Show loaded DAZI.md files and their content |
-
-## Full Command Reference
+## Command Reference
 
 | Command | Description |
 |---------|-------------|
 | `/plan` | Enter plan mode (read-only) |
 | `/go` | Exit plan mode, resume execution |
+| `/show` | Display the plan file |
 | `/tools` | List available tools |
 | `/tasks` | Show task board |
 | `/task <id>` | Get task details |
@@ -506,7 +463,7 @@ DAZI.md supports `@include` directives for composing from multiple files:
 | `/worktree` | List worktrees |
 | `/worktree create <name>` | Create worktree |
 | `/worktree finish <name>` | Finish worktree |
-| `/reload` | Reload settings and DAZI.md |
+| `/reload` | Reload settings, skills, and MCP servers |
 | `/clear` | Reset conversation |
 | `/quit` | Exit DAZI |
 
@@ -517,35 +474,42 @@ DAZI.md supports `@include` directives for composing from multiple files:
 | `OPENAI_API_KEY` | API key for the LLM provider |
 | `OPENAI_MODEL` | Default model name (overridden by settings) |
 | `OPENAI_BASE_URL` | Custom API endpoint (overridden by settings) |
-| `DAZI_MAX_CONCURRENT` | Max parallel tool executions (default: 5) |
 | `DAZI_PROACTIVE` | Set to `1` to enable proactive mode at startup |
 
-## Configuration
+---
 
-Settings are stored in JSON with three layers:
+## Roadmap: Towards a Full Harness Engineering Infrastructure
 
-**`~/.dazi/settings.json`** (user-level, all projects):
-```json
-{
-  "model": "gpt-4o",
-  "api_base_url": "https://api.openai.com/v1",
-  "max_concurrent_tools": 5,
-  "mcpServers": {
-    "filesystem": {
-      "command": "npx",
-      "args": ["@anthropic/mcp-fs"]
-    }
-  }
-}
-```
+DAZI already covers the core harness layers — feedforward guides, computational controls, feedback sensors, and the steering loop. Here's what's coming next to make it a complete harness engineering infrastructure:
 
-**`.dazi/settings.json`** (project-level, shared with team):
-```json
-{
-  "allow_rules": ["git status", "npm test"],
-  "deny_rules": ["rm -rf *"],
-  "env": {
-    "NODE_ENV": "test"
-  }
-}
-```
+### Automated Steering Loop
+**The gap:** Today you manually notice recurring failures and save corrections. The agent doesn't track which mistakes repeat.
+**The vision:** DAZI detects when the same failure pattern recurs across sessions and automatically suggests harness improvements — a new DAZI.md rule, a permission update, or a hook addition. *From "you fix it" to "the harness fixes itself."*
+
+### Built-in Verification Hooks
+**The gap:** Hooks exist but there are no pre-built verification hooks for common workflows (lint after edit, test after commit, type-check after refactor).
+**The vision:** A library of ready-made verification hooks: `post-edit-lint`, `post-write-test`, `pre-commit-typecheck`. One line in settings.json to activate. Computational controls that work out of the box.
+
+### AI-as-Judge Evaluator Pattern
+**The gap:** The `/review` skill is a single agent reviewing its own work. Research shows models can't reliably evaluate their own output.
+**The vision:** A dedicated evaluator agent — separate from the generator — that runs semantic code review after every edit cycle. Not just lint (computational), but judgment on correctness, security, and intent (inferential). The generator/evaluator split from GAN research, applied to code.
+
+### Harness Observability
+**The gap:** You can't see which controls catch which failures, or how your harness improves over time.
+**The vision:** A dashboard showing which permission rules fire most, which hooks prevent the most issues, which memory corrections get loaded most often. Measure the harness, not just the agent.
+
+### Technology-Aware Feedforward
+**The gap:** DAZI.md is static — you write it once and it applies the same guidance regardless of which file or language you're editing.
+**The vision:** Auto-detect project technology stack (React, Django, Go microservices) and inject relevant conventions, patterns, and anti-patterns automatically. The feedforward layer adapts to what you're actually building.
+
+### Entropy Management
+**The gap:** Long autonomous sessions accumulate cruft — unused imports, commented-out code, inconsistent naming.
+**The vision:** A background agent that periodically refactors for code hygiene. Not waiting for you to notice — the harness keeps the codebase clean autonomously.
+
+---
+
+## Contributing
+
+DAZI is open source and built in the open. PRs welcome. File issues. Star the repo if it saves your evening.
+
+License: MIT

@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from prompt_toolkit import PromptSession
+    from prompt_toolkit.formatted_text import FormattedText
+
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.errors import GraphInterrupt
 from rich.console import Console
@@ -19,20 +25,17 @@ from dazi._singletons import (
     memory_store,
     proactive_manager,
     settings_manager,
-    skill_registry,
     task_store,
     team_manager,
     worktree_manager,
 )
 from dazi.config import DATA_DIR
-from dazi.dazimd import DaziMdFile
 from dazi.graph import (
     EXECUTE_MODE,
-    connect_mcp_servers,
     permission_rules,
     run_graph_turn,
 )
-from dazi.lifecycle import cleanup_on_exit, load_dazimd
+from dazi.lifecycle import cleanup_on_exit, load_subsystems
 from dazi.llm import _get_model_name
 from dazi.proactive import ProactiveSource, format_tick
 from dazi.prompt_builder import _update_proactive_prompt
@@ -45,12 +48,63 @@ from dazi.tokenizer import (
 )
 
 console = Console()
-dazimd_files: list[DaziMdFile] = []
 
 
 # ─────────────────────────────────────────────────────────
 # REPL LOOP
 # ─────────────────────────────────────────────────────────
+
+
+async def _prompt_with_background_watcher(
+    session: PromptSession,
+    formatted_text: FormattedText,
+    state: dict,
+) -> str | None:
+    """Await user input, racing against background task completion.
+
+    Returns the user input string, or None if a background task completed
+    while the user was idle (notifications already displayed).
+    """
+    import asyncio
+
+    from dazi.graph import display_background_notifications
+
+    bg_event = background_manager.completion_event
+    prompt_coro = session.prompt_async(formatted_text)
+    completion_coro = bg_event.wait()
+
+    done, pending = await asyncio.wait(
+        [asyncio.ensure_future(prompt_coro), asyncio.ensure_future(completion_coro)],
+        return_when=asyncio.FIRST_COMPLETED,
+    )
+
+    # Cancel whichever didn't finish.
+    # NOTE: If the user was mid-typing when a completion fires, their partial
+    # input is discarded. A future improvement could preserve the draft.
+    for task in pending:
+        task.cancel()
+        try:
+            await task
+        except (asyncio.CancelledError, Exception):
+            pass
+
+    # Figure out which won
+    for task in done:
+        if task.done() and not task.cancelled():
+            try:
+                result = task.result()
+            except Exception:
+                continue
+
+            # Check if this was the prompt (returns string) or the event (returns True)
+            if isinstance(result, str):
+                return result
+
+    # Background completion won — display notifications
+    completed = background_manager.collect_completed()
+    if completed:
+        display_background_notifications(completed)
+    return None
 
 
 async def run_repl() -> None:
@@ -61,10 +115,6 @@ async def run_repl() -> None:
 
     from dazi.repl_completer import get_prompt_session_kwargs
     from dazi.theme import PROMPT as _P
-
-    # Load DAZI.md at startup
-    global dazimd_files
-    dazimd_files = load_dazimd(console=console)
 
     # Onboarding: check if required settings are present
     s = settings_manager.settings
@@ -79,11 +129,9 @@ async def run_repl() -> None:
     TASKS_DIR.mkdir(parents=True, exist_ok=True)
     BACKGROUND_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Connect to MCP servers at startup
-    await connect_mcp_servers()
-
-    # Load skills at startup
-    skill_count = skill_registry.load_skills()
+    # Load subsystems (DAZI.md, settings, skills, MCP)
+    result = await load_subsystems(console=console)
+    skill_count = result.skill_count
 
     # Count existing teams
     team_count = len(team_manager.list_teams())
@@ -98,7 +146,7 @@ async def run_repl() -> None:
 
     def print_welcome():
         print_welcome_message(
-            console, skill_count=skill_count, team_count=team_count, dazimd_files=dazimd_files
+            console, skill_count=skill_count, team_count=team_count
         )
 
     print_ascii_banner(console, version=__version__)
@@ -188,12 +236,23 @@ async def run_repl() -> None:
                     segments += [(_P["separator"], " \u00b7 "), (_P["dim"], item)]
 
                 # Prompt line
+                segments += [("", "\n")]
+                if _teams.active_team_name:
+                    segments += [
+                        (_P["primary"], _teams.active_team_name),
+                        (_P["separator"], " "),
+                    ]
                 segments += [
-                    ("", "\n"),
                     ("fg:#ff8c00", "\u276f "),
                 ]
 
-                user_input = await session.prompt_async(FormattedText(segments))
+                user_input = await _prompt_with_background_watcher(
+                    session, FormattedText(segments), state
+                )
+                if user_input is None:
+                    # Background completion fired — notifications already displayed.
+                    # Re-render the prompt for next input.
+                    continue
                 if not user_input.strip():
                     continue
 
@@ -213,7 +272,6 @@ async def run_repl() -> None:
                     state=state,
                     session=session,
                     console=console,
-                    dazimd_files=dazimd_files,
                     print_welcome_fn=print_welcome,
                 )
                 if result == "break":

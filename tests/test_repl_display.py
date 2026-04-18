@@ -152,11 +152,14 @@ class TestListMemoriesTable:
 
 class TestShowDazimdFiles:
     def test_empty(self):
+        import dazi.prompt_builder as pb_mod
         import dazi.repl_display as mod
 
-        mod.show_dazimd_files([])
+        pb_mod.prompt_builder._dazimd_files = []
+        mod.show_dazimd_files()
 
     def test_with_files(self):
+        import dazi.prompt_builder as pb_mod
         import dazi.repl_display as mod
 
         files = [
@@ -165,7 +168,8 @@ class TestShowDazimdFiles:
                 path=Path("/project/DAZI.local.md"), priority=400, content="# Local\nSecrets."
             ),
         ]
-        mod.show_dazimd_files(files)
+        pb_mod.prompt_builder._dazimd_files = files
+        mod.show_dazimd_files()
 
 
 # ─────────────────────────────────────────────────────────
@@ -938,7 +942,6 @@ class TestPrintWelcomeMessage:
                     con,
                     skill_count=5,
                     team_count=2,
-                    dazimd_files=[Path("/project/DAZI.md")],
                 )
         finally:
             _teams.active_team_name = original_team_name
@@ -963,7 +966,6 @@ class TestPrintWelcomeMessage:
                     con,
                     skill_count=10,
                     team_count=3,
-                    dazimd_files=[],
                 )
         finally:
             _teams.active_team_name = original_team_name

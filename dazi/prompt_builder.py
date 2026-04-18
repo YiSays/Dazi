@@ -594,6 +594,7 @@ class SystemPromptBuilder:
     def __init__(self) -> None:
         self._static_cache: str | None = None
         self._dazimd_content: str = ""
+        self._dazimd_files: list = []
         self._skills_content: str = ""
         self._custom_static_overrides: dict[PromptSection, str] = {}
         self._build_count = 0
@@ -608,10 +609,17 @@ class SystemPromptBuilder:
         """Total number of build() calls."""
         return self._build_count
 
-    def set_dazimd_content(self, content: str) -> None:
+    def set_dazimd_content(self, content: str, files: list | None = None) -> None:
         """Set DAZI.md content. Invalidates static cache."""
         self._dazimd_content = content
+        if files is not None:
+            self._dazimd_files = files
         self._static_cache = None  # Invalidate cache
+
+    @property
+    def dazimd_files(self) -> list:
+        """Currently loaded DAZI.md file metadata (for display)."""
+        return self._dazimd_files
 
     def set_custom_section(self, section: PromptSection, content: str) -> None:
         """Override a static section's content. Invalidates cache."""

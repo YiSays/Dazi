@@ -302,11 +302,11 @@ class TestActivateTeam:
 
         team = _make_team(name="web-dev", members=[])
         monkeypatch.setattr(team_manager, "get_team", MagicMock(return_value=team))
-        monkeypatch.setattr(
-            team_manager, "_task_dir", MagicMock(return_value=Path("/fake/tasks/web-dev"))
-        )
         monkeypatch.setattr(team_manager, "_sanitize_name", MagicMock(return_value="web-dev"))
         monkeypatch.setattr(team_manager, "teams_dir", Path("/fake/.dazi/teams"))
+
+        fake_tasks_dir = Path("/fake/.dazi/tasks")
+        monkeypatch.setattr(mod, "TASKS_DIR", fake_tasks_dir)
 
         mock_mailbox = MagicMock()
         monkeypatch.setattr(mod, "mailbox", mock_mailbox)
@@ -321,7 +321,7 @@ class TestActivateTeam:
         assert _singletons_mod.active_team_name == "web-dev"
         assert _singletons_mod.current_agent_name == TEAM_LEAD_NAME
         mock_mailbox._ensure_inbox_dir.assert_called_once_with("web-dev")
-        MockTaskStore.assert_called_once_with(Path("/fake/tasks/web-dev"), list_id="default")
+        MockTaskStore.assert_called_once_with(fake_tasks_dir, list_id="web-dev")
         assert mod.team_task_store is mock_store
 
     def test_successful_activation_with_members(self, monkeypatch):
@@ -336,9 +336,6 @@ class TestActivateTeam:
         m2 = _make_member(name="backend")
         team = _make_team(name="web-dev", members=[m1, m2])
         monkeypatch.setattr(team_manager, "get_team", MagicMock(return_value=team))
-        monkeypatch.setattr(
-            team_manager, "_task_dir", MagicMock(return_value=Path("/fake/tasks/web-dev"))
-        )
         monkeypatch.setattr(team_manager, "_sanitize_name", MagicMock(return_value="web-dev"))
         monkeypatch.setattr(team_manager, "teams_dir", Path("/fake/.dazi/teams"))
 

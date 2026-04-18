@@ -33,11 +33,9 @@ from dazi._singletons import (
     worktree_manager,
 )
 from dazi.compact import manual_compact
-from dazi.dazimd import DaziMdFile
 from dazi.graph import (
     EXECUTE_MODE,
     PLAN_MODE,
-    connect_mcp_servers,
     hook_registry,
     permission_rules,
     rebuild_tool_lists,
@@ -82,7 +80,6 @@ async def handle_command(
     state: dict,
     session: PromptSession,
     console: Console,
-    dazimd_files: list[DaziMdFile],
     print_welcome_fn: Callable[[], None],
 ) -> str | None:
     """Dispatch a slash command.
@@ -161,21 +158,19 @@ async def handle_command(
 
     # ── /reload ──
     if cmd == "/reload":
-        settings_manager.reload()
-        console.print("[green]Settings reloaded.[/green]")
-        new_skill_count = skill_registry.reload()
-        console.print(f"[green]Skills reloaded: {new_skill_count} skill(s).[/green]")
-        await mcp_manager.disconnect_all()
-        await connect_mcp_servers()
+        from dazi.lifecycle import load_subsystems
+
+        await load_subsystems(console=console)
+        console.print("[green]Reloaded: DAZI.md, settings, skills, MCP servers.[/green]")
         return "continue"
 
     # ── /onboard ──
     if cmd == "/onboard":
+        from dazi.lifecycle import load_subsystems
         from dazi.onboard import run_onboarding
 
         run_onboarding(console)
-        settings_manager.reload()
-        await connect_mcp_servers()
+        await load_subsystems(console=console)
         return "continue"
 
     # ── /mcp ──
@@ -388,7 +383,7 @@ async def handle_command(
 
     # ── /dazimd ──
     if cmd == "/dazimd":
-        show_dazimd_files(dazimd_files)
+        show_dazimd_files()
         return "continue"
 
     # ── /reindex ──

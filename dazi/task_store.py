@@ -11,6 +11,7 @@ KEY CONCEPTS:
 from __future__ import annotations
 
 import json
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
@@ -118,10 +119,11 @@ class TaskStore:
         self.tasks_base_dir = tasks_base_dir
         self.list_id = list_id
         self._list_dir = tasks_base_dir / list_id
+        self._lock = threading.Lock()
 
     # ── ID Generation ────────────────────────────────────
-    # The HWM file stores the highest ID ever assigned.
-    # Even after deletion, IDs are never reused.
+    # IDs are max(existing_file_ids) + 1.
+    # When all task files are removed, IDs reset to 1.
 
     def _next_id(self) -> int:
         """Get the next task ID from the max existing task ID.
@@ -150,16 +152,17 @@ class TaskStore:
         metadata: dict[str, Any] | None = None,
     ) -> Task:
         """Create a new task with status 'pending'."""
-        task_id = self._next_id()
-        task = Task(
-            id=task_id,
-            subject=subject,
-            description=description,
-            active_form=active_form,
-            metadata=metadata or {},
-        )
-        self._write_task(task)
-        return task
+        with self._lock:
+            task_id = self._next_id()
+            task = Task(
+                id=task_id,
+                subject=subject,
+                description=description,
+                active_form=active_form,
+                metadata=metadata or {},
+            )
+            self._write_task(task)
+            return task
 
     def get(self, task_id: int) -> Task | None:
         """Retrieve a task by ID."""
@@ -177,35 +180,37 @@ class TaskStore:
 
         Allowed fields: subject, description, active_form, status, owner, metadata
         """
-        task = self.get(task_id)
-        if task is None:
-            return None
+        with self._lock:
+            task = self._get_unlocked(task_id)
+            if task is None:
+                return None
 
-        allowed_fields = {
-            "subject",
-            "description",
-            "active_form",
-            "status",
-            "owner",
-            "metadata",
-        }
-        for key, value in kwargs.items():
-            if key in allowed_fields:
-                setattr(task, key, value)
+            allowed_fields = {
+                "subject",
+                "description",
+                "active_form",
+                "status",
+                "owner",
+                "metadata",
+            }
+            for key, value in kwargs.items():
+                if key in allowed_fields:
+                    setattr(task, key, value)
 
-        self._write_task(task)
-        return task
+            self._write_task(task)
+            return task
 
     def delete(self, task_id: int) -> bool:
         """Delete a task by removing its file.
 
         Note: Does NOT cascade (other tasks' blocks/blocked_by may still reference it).
         """
-        path = self._list_dir / f"{task_id}.json"
-        if path.exists():
-            path.unlink()
-            return True
-        return False
+        with self._lock:
+            path = self._list_dir / f"{task_id}.json"
+            if path.exists():
+                path.unlink()
+                return True
+            return False
 
     def list_all(self) -> list[Task]:
         """List all tasks, sorted by ID ascending."""
@@ -225,26 +230,40 @@ class TaskStore:
 
     # ── Dependency Management ────────────────────────────
     # Bidirectional: both tasks are updated to maintain consistency.
+    # All operations acquire self._lock to prevent read-modify-write races
+    # when parallel tool calls modify overlapping task files.
+
+    def _get_unlocked(self, task_id: int) -> Task | None:
+        """Read a task without acquiring the lock (caller must hold it)."""
+        path = self._list_dir / f"{task_id}.json"
+        if not path.exists():
+            return None
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            return Task.from_dict(data)
+        except (json.JSONDecodeError, KeyError):
+            return None
 
     def add_block(self, task_id: int, blocked_task_id: int) -> tuple[Task | None, Task | None]:
         """Mark task_id as blocking blocked_task_id (bidirectional update).
 
         Adds blocked_task_id to task.blocks and task_id to blocked_task.blocked_by.
         """
-        task = self.get(task_id)
-        blocked_task = self.get(blocked_task_id)
-        if task is None or blocked_task is None:
-            return None, None
+        with self._lock:
+            task = self._get_unlocked(task_id)
+            blocked_task = self._get_unlocked(blocked_task_id)
+            if task is None or blocked_task is None:
+                return None, None
 
-        if blocked_task_id not in task.blocks:
-            task.blocks.append(blocked_task_id)
-            self._write_task(task)
+            if blocked_task_id not in task.blocks:
+                task.blocks.append(blocked_task_id)
+                self._write_task(task)
 
-        if task_id not in blocked_task.blocked_by:
-            blocked_task.blocked_by.append(task_id)
-            self._write_task(blocked_task)
+            if task_id not in blocked_task.blocked_by:
+                blocked_task.blocked_by.append(task_id)
+                self._write_task(blocked_task)
 
-        return task, blocked_task
+            return task, blocked_task
 
     def add_blocked_by(
         self, task_id: int, blocking_task_id: int
@@ -253,20 +272,21 @@ class TaskStore:
 
         Adds blocking_task_id to task.blocked_by and task_id to blocking_task.blocks.
         """
-        task = self.get(task_id)
-        blocking_task = self.get(blocking_task_id)
-        if task is None or blocking_task is None:
-            return None, None
+        with self._lock:
+            task = self._get_unlocked(task_id)
+            blocking_task = self._get_unlocked(blocking_task_id)
+            if task is None or blocking_task is None:
+                return None, None
 
-        if blocking_task_id not in task.blocked_by:
-            task.blocked_by.append(blocking_task_id)
-            self._write_task(task)
+            if blocking_task_id not in task.blocked_by:
+                task.blocked_by.append(blocking_task_id)
+                self._write_task(task)
 
-        if task_id not in blocking_task.blocks:
-            blocking_task.blocks.append(task_id)
-            self._write_task(blocking_task)
+            if task_id not in blocking_task.blocks:
+                blocking_task.blocks.append(task_id)
+                self._write_task(blocking_task)
 
-        return task, blocking_task
+            return task, blocking_task
 
     def get_active_blockers(self, task_id: int) -> list[int]:
         """Get task IDs still blocking this task (excluding completed ones)."""
@@ -318,9 +338,10 @@ def task_create(
     subject: str, description: str, activeForm: str = "", metadata: dict[str, object] | None = None
 ) -> str:
     """Create a new task on the task board."""
-    from dazi._singletons import task_store
+    from dazi._singletons import get_active_task_store
 
-    task = task_store.create(
+    store = get_active_task_store()
+    task = store.create(
         subject=subject, description=description, active_form=activeForm, metadata=metadata or {}
     )
     return (
@@ -365,6 +386,27 @@ class TaskUpdateInput(BaseModel):
         description="Metadata keys to merge into the task. Set a key to null to delete it.",
     )
 
+    @field_validator("addBlocks", "addBlockedBy", mode="before")
+    @classmethod
+    def coerce_list_fields(cls, v: Any) -> list[str] | None:
+        """Coerce string representations of lists into actual lists.
+
+        LLM tool calls may serialize lists as strings (e.g., '["19"]' instead of ["19"]).
+        """
+        if v is None:
+            return v
+        if isinstance(v, list):
+            return v
+        if isinstance(v, str):
+            try:
+                parsed = json.loads(v)
+                if isinstance(parsed, list):
+                    return [str(item) for item in parsed]
+            except (json.JSONDecodeError, ValueError):
+                pass
+            return [v]
+        return v
+
     @field_validator("status")
     @classmethod
     def validate_status(cls, v: str | None) -> str | None:
@@ -397,7 +439,9 @@ def task_update(
     metadata: dict[str, object] | None = None,
 ) -> str:
     """Update a task's status, fields, or dependencies."""
-    from dazi._singletons import task_store
+    from dazi._singletons import get_active_task_store
+
+    store = get_active_task_store()
 
     try:
         tid = int(taskId)
@@ -405,7 +449,7 @@ def task_update(
         return f"Error: Invalid taskId '{taskId}'. Must be an integer."
 
     if status == "deleted":
-        if task_store.delete(tid):
+        if store.delete(tid):
             return f"Task #{tid} deleted."
         return f"Error: Task #{tid} not found."
 
@@ -426,18 +470,18 @@ def task_update(
     updated_fields: list[str] = list(update_kwargs.keys())
 
     if update_kwargs:
-        task = task_store.update(tid, **update_kwargs)
+        task = store.update(tid, **update_kwargs)
         if task is None:
             return f"Error: Task #{tid} not found."
     else:
-        task = task_store.get(tid)
+        task = store.get(tid)
         if task is None:
             return f"Error: Task #{tid} not found."
 
     if addBlocks:
         for blocked_id_str in addBlocks:
             try:
-                task_store.add_block(tid, int(blocked_id_str))
+                store.add_block(tid, int(blocked_id_str))
             except (ValueError, TypeError):
                 pass
         updated_fields.append("addBlocks")
@@ -445,12 +489,12 @@ def task_update(
     if addBlockedBy:
         for blocking_id_str in addBlockedBy:
             try:
-                task_store.add_blocked_by(tid, int(blocking_id_str))
+                store.add_blocked_by(tid, int(blocking_id_str))
             except (ValueError, TypeError):
                 pass
         updated_fields.append("addBlockedBy")
 
-    task = task_store.get(tid)
+    task = store.get(tid)
     if task is None:
         return f"Error: Task #{tid} not found after update."
 
@@ -490,15 +534,16 @@ class TaskListInput(BaseModel):
 
 def task_list() -> str:
     """List all tasks with summary info."""
-    from dazi._singletons import task_store
+    from dazi._singletons import get_active_task_store
 
-    tasks = task_store.list_all()
+    store = get_active_task_store()
+    tasks = store.list_all()
     if not tasks:
         return "No tasks found."
 
     lines = []
     for task in tasks:
-        active_blockers = task_store.get_active_blockers(task.id)
+        active_blockers = store.get_active_blockers(task.id)
         owner_str = f" (owner: {task.owner})" if task.owner else ""
         blocked_str = f" [blocked by: {active_blockers}]" if active_blockers else ""
         lines.append(f"  #{task.id} [{task.status.value}]{owner_str} {task.subject}{blocked_str}")
@@ -530,14 +575,16 @@ class TaskGetInput(BaseModel):
 
 def task_get(taskId: str) -> str:
     """Get full details of a specific task."""
-    from dazi._singletons import task_store
+    from dazi._singletons import get_active_task_store
+
+    store = get_active_task_store()
 
     try:
         tid = int(taskId)
     except (ValueError, TypeError):
         return f"Error: Invalid taskId '{taskId}'. Must be an integer."
 
-    task = task_store.get(tid)
+    task = store.get(tid)
     if task is None:
         return f"Task not found: #{taskId}"
 

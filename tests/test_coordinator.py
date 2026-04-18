@@ -784,8 +784,11 @@ class TestSpawnAgentFunc:
         mock_teammate = MagicMock()
         mock_teammate.spawn_autonomous.return_value = mock_task
 
+        mock_tm = MagicMock()
+
         with (
             patch("dazi._singletons.autonomous_teammate", mock_teammate),
+            patch("dazi._singletons.team_manager", mock_tm),
             patch("dazi.config.DATA_DIR", tmp_path),
         ):
             result = await spawn_agent_func(
@@ -796,6 +799,11 @@ class TestSpawnAgentFunc:
             assert "worker" in result
             assert "team1" in result
             mock_teammate.spawn_autonomous.assert_called_once()
+            mock_tm.add_member.assert_called_once()
+            member = mock_tm.add_member.call_args[0][1]
+            assert member.name == "worker"
+            assert member.agent_id == "worker@team1"
+            assert member.agent_type == "general-purpose"
 
     @pytest.mark.asyncio
     async def test_spawn_agent_func_with_initial_task(self, tmp_path: Path):
@@ -805,8 +813,11 @@ class TestSpawnAgentFunc:
         mock_teammate = MagicMock()
         mock_teammate.spawn_autonomous.return_value = mock_task
 
+        mock_tm = MagicMock()
+
         with (
             patch("dazi._singletons.autonomous_teammate", mock_teammate),
+            patch("dazi._singletons.team_manager", mock_tm),
             patch("dazi.config.DATA_DIR", tmp_path),
         ):
             result = await spawn_agent_func(
@@ -817,6 +828,9 @@ class TestSpawnAgentFunc:
             )
             assert "backend" in result
             assert "Initial task: Fix the bug" in result
+            mock_tm.add_member.assert_called_once()
+            member = mock_tm.add_member.call_args[0][1]
+            assert member.agent_type == "explore"
 
 
 class TestSpawnAgentMetadata:

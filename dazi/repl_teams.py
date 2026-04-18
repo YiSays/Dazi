@@ -6,7 +6,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from dazi._singletons import mailbox, team_manager
+from dazi._singletons import TASKS_DIR, mailbox, team_manager
 from dazi.task_store import TaskStore
 from dazi.team import TEAM_LEAD_NAME
 from dazi.theme import BORDER
@@ -116,8 +116,9 @@ def activate_team(name: str) -> None:
     # Ensure inbox directory exists
     mailbox._ensure_inbox_dir(name)
 
-    task_dir = team_manager._task_dir(name)
-    team_task_store = TaskStore(task_dir, list_id="default")
+    team_task_store = TaskStore(TASKS_DIR, list_id=name)
+    _singletons.team_task_store = team_task_store
+    task_dir = team_task_store._list_dir
     console.print(f"[green]Switched to team: {name} (as team-lead)[/green]")
     console.print(f"[dim]Task board: {task_dir}[/dim]")
     console.print(
@@ -144,6 +145,7 @@ def deactivate_team() -> None:
     # Sync with tools module
     _singletons.active_team_name = None
     _singletons.current_agent_name = None
+    _singletons.team_task_store = None
 
 
 # ─────────────────────────────────────────────────────────

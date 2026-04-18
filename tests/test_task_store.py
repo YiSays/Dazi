@@ -16,9 +16,12 @@ from dazi.task_store import (
     TaskStore,
     TaskUpdateInput,
     task_create,
+    task_create_tool,
     task_get,
     task_list,
+    task_list_tool,
     task_update,
+    task_update_tool,
 )
 from tests.helpers.mock_singletons import patch_singletons
 
@@ -163,6 +166,24 @@ class TestTaskStoreDelete:
 
     def test_delete_nonexistent_returns_false(self, mock_task_store):
         assert mock_task_store.delete(999) is False
+
+    def test_ids_reset_after_full_deletion(self, mock_task_store):
+        t1 = mock_task_store.create("A", "a")
+        t2 = mock_task_store.create("B", "b")
+        t3 = mock_task_store.create("C", "c")
+        mock_task_store.delete(t1.id)
+        mock_task_store.delete(t2.id)
+        mock_task_store.delete(t3.id)
+        t_new = mock_task_store.create("D", "d")
+        assert t_new.id == 1
+
+    def test_ids_continue_after_partial_deletion(self, mock_task_store):
+        mock_task_store.create("A", "a")
+        t2 = mock_task_store.create("B", "b")
+        mock_task_store.create("C", "c")
+        mock_task_store.delete(t2.id)
+        t_new = mock_task_store.create("D", "d")
+        assert t_new.id == 4
 
 
 class TestTaskStoreListAll:
@@ -483,22 +504,27 @@ class TestTaskUpdateFunction:
 
         # Create a task, then make the store's get return None on re-fetch
         task_create(subject="T", description="D")
-        original_get = real_store.get
 
+        # Patch _get_unlocked so update() succeeds (first call), then patch get()
+        # so the re-fetch after addBlockedBy returns None.
+        original_get = real_store.get
         call_count = 0
 
-        def flaky_get(self, tid):
+        def flaky_get(tid):
             nonlocal call_count
             call_count += 1
-            # First call succeeds (inside update -> get), second returns None (re-fetch at line 453)
             if call_count <= 1:
                 return original_get(tid)
             return None
 
-        # Patch at the module level so the local import in task_update picks it up
-        monkeypatch.setattr(real_store.__class__, "get", flaky_get)
+        # Patch the public get() — the re-fetch at the end of task_update uses this.
+        # update() now uses _get_unlocked internally so it isn't affected.
+        monkeypatch.setattr(real_store, "get", flaky_get)
 
-        result = task_update(taskId="1", status="in_progress")
+        # Use addBlockedBy to trigger the re-fetch path after update
+        result = task_update(taskId="1", addBlockedBy=["999"])
+        # addBlockedBy with nonexistent ID is silently skipped,
+        # then the re-fetch get() returns None (call_count > 1)
         assert "not found after update" in result
 
     def test_update_with_add_blocks(self):
@@ -625,3 +651,159 @@ class TestTaskGetFunction:
         task_create(subject="T", description="D", metadata={"p": "high"})
         result = task_get(taskId="1")
         assert "Metadata:" in result
+
+
+# ─────────────────────────────────────────────────────────
+# StructuredTool adapter tests
+# ─────────────────────────────────────────────────────────
+
+
+class TestTaskUpdateToolAdapter:
+    """Exercise the StructuredTool wrappers, not just the bare Python functions.
+
+    These tests validate that the Pydantic schema + StructuredTool adapter layer
+    correctly handles inputs — including edge-case types that LLM callers may produce.
+    """
+
+    def test_structured_tool_add_blocked_by(self):
+        task_create(subject="Blocker", description="D")
+        task_create(subject="Blocked", description="D")
+        result = task_update_tool.invoke({"taskId": "2", "addBlockedBy": ["1"]})
+        assert "addBlockedBy" in result
+        assert "Blocked by:" in result
+
+    def test_structured_tool_add_blocks(self):
+        task_create(subject="Blocker", description="D")
+        task_create(subject="Blocked", description="D")
+        result = task_update_tool.invoke({"taskId": "1", "addBlocks": ["2"]})
+        assert "addBlocks" in result
+        assert "Blocks:" in result
+
+    def test_structured_tool_string_list_coercion(self):
+        """LLM may pass addBlockedBy as a JSON-encoded string '["1"]' instead of ["1"]."""
+        task_create(subject="Blocker", description="D")
+        task_create(subject="Blocked", description="D")
+        result = task_update_tool.invoke({"taskId": "2", "addBlockedBy": '["1"]'})
+        assert "addBlockedBy" in result
+        assert "Blocked by:" in result
+
+    def test_structured_tool_string_list_coercion_add_blocks(self):
+        """LLM may pass addBlocks as a JSON-encoded string '["2"]' instead of ["2"]."""
+        task_create(subject="Blocker", description="D")
+        task_create(subject="Blocked", description="D")
+        result = task_update_tool.invoke({"taskId": "1", "addBlocks": '["2"]'})
+        assert "addBlocks" in result
+        assert "Blocks:" in result
+
+    def test_structured_tool_end_to_end(self):
+        """Create tasks via tool, add deps via tool, verify list shows them."""
+        task_create_tool.invoke({"subject": "Setup", "description": "Install deps"})
+        task_create_tool.invoke({"subject": "Build", "description": "Build feature"})
+        task_update_tool.invoke({"taskId": "1", "addBlocks": ["2"]})
+        list_result = task_list_tool.invoke({})
+        assert "blocked by:" in list_result
+
+
+# ─────────────────────────────────────────────────────────
+# Team-aware tool function routing
+# ─────────────────────────────────────────────────────────
+
+
+class TestToolFunctionsTeamRouting:
+    """Verify tool functions route to the correct store based on team context."""
+
+    @pytest.fixture(autouse=True)
+    def _patch_singletons(self, monkeypatch, tmp_path):
+        patch_singletons(monkeypatch, tmp_path)
+
+    @pytest.fixture(autouse=True)
+    def _reset_team_context(self):
+        """Clean up team context between tests."""
+        import dazi._singletons as _s
+
+        _s.active_team_name = None
+        _s.team_task_store = None
+        yield
+        _s.active_team_name = None
+        _s.team_task_store = None
+
+    def test_create_goes_to_default_when_no_team(self):
+        result = task_create(subject="Default task", description="D")
+        assert "Task created: #1" in result
+
+    def test_list_empty_when_no_team(self):
+        assert "No tasks found." in task_list()
+
+    def test_create_goes_to_team_store_when_active(self, tmp_path):
+        import dazi._singletons as _s
+        from dazi.task_store import TaskStore
+
+        team_dir = tmp_path / ".dazi" / "tasks" / "my-team"
+        team_store = TaskStore(team_dir, list_id="default")
+        _s.active_team_name = "my-team"
+        _s.team_task_store = team_store
+
+        task_create(subject="Team task", description="D")
+
+        from dazi._singletons import task_store as default_store
+
+        assert default_store.list_all() == []
+        assert len(team_store.list_all()) == 1
+        assert team_store.list_all()[0].subject == "Team task"
+
+    def test_list_shows_team_tasks_when_active(self, tmp_path):
+        import dazi._singletons as _s
+        from dazi.task_store import TaskStore
+
+        team_dir = tmp_path / ".dazi" / "tasks" / "my-team"
+        team_store = TaskStore(team_dir, list_id="default")
+        team_store.create("Team-only task", "D")
+        _s.active_team_name = "my-team"
+        _s.team_task_store = team_store
+
+        assert "Team-only task" in task_list()
+
+    def test_get_reads_from_team_store(self, tmp_path):
+        import dazi._singletons as _s
+        from dazi.task_store import TaskStore
+
+        team_dir = tmp_path / ".dazi" / "tasks" / "my-team"
+        team_store = TaskStore(team_dir, list_id="default")
+        team_store.create("Found task", "Details here")
+        _s.active_team_name = "my-team"
+        _s.team_task_store = team_store
+
+        result = task_get(taskId="1")
+        assert "Found task" in result
+        assert "Details here" in result
+
+    def test_update_modifies_team_store(self, tmp_path):
+        import dazi._singletons as _s
+        from dazi.task_store import TaskStore
+
+        team_dir = tmp_path / ".dazi" / "tasks" / "my-team"
+        team_store = TaskStore(team_dir, list_id="default")
+        _s.active_team_name = "my-team"
+        _s.team_task_store = team_store
+
+        task_create(subject="Original", description="D")
+        result = task_update(taskId="1", status="in_progress")
+        assert "in_progress" in result
+        assert team_store.get(1).status.value == "in_progress"
+
+    def test_returns_to_default_after_deactivation(self, tmp_path):
+        import dazi._singletons as _s
+        from dazi.task_store import TaskStore
+
+        team_dir = tmp_path / ".dazi" / "tasks" / "my-team"
+        team_store = TaskStore(team_dir, list_id="default")
+        _s.active_team_name = "my-team"
+        _s.team_task_store = team_store
+
+        task_create(subject="Team task", description="D")
+
+        _s.active_team_name = None
+        _s.team_task_store = None
+
+        result = task_create(subject="Default task", description="D")
+        assert "Task created: #1" in result

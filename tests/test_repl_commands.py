@@ -49,7 +49,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "break"
@@ -63,7 +62,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -80,7 +78,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -97,7 +94,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -131,7 +127,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -147,7 +142,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -162,7 +156,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -181,7 +174,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -197,7 +189,6 @@ class TestHandleCommand:
             state=state,
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -213,7 +204,6 @@ class TestHandleCommand:
             state=state,
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -231,7 +221,6 @@ class TestHandleCommand:
             state=state,
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -247,7 +236,6 @@ class TestHandleCommand:
             state=state,
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -264,7 +252,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -279,7 +266,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -302,7 +288,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -317,7 +302,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -336,7 +320,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -351,7 +334,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -370,7 +352,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -385,7 +366,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -400,7 +380,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -415,7 +394,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -429,7 +407,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -446,7 +423,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -468,7 +444,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -483,7 +458,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -498,7 +472,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -513,7 +486,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -528,7 +500,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -543,7 +514,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -558,7 +528,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -572,7 +541,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -587,7 +555,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -602,7 +569,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -617,7 +583,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -632,7 +597,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -647,7 +611,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -673,7 +636,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -687,7 +649,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -702,7 +663,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -717,7 +677,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -735,7 +694,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -751,7 +709,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -767,7 +724,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -788,7 +744,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -805,7 +760,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -820,7 +774,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -841,7 +794,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -863,7 +815,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -878,7 +829,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -893,7 +843,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -907,7 +856,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -922,7 +870,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -937,7 +884,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -951,7 +897,6 @@ class TestHandleCommand:
             state=_state(messages=[MagicMock()]),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -965,7 +910,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result is None
@@ -992,7 +936,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -1008,28 +951,25 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
 
     @pytest.mark.asyncio
     async def test_reload(self, monkeypatch):
+        import dazi.lifecycle as lifecycle_mod
         import dazi.repl_commands as mod
 
-        monkeypatch.setattr(mod, "settings_manager", MagicMock())
-        monkeypatch.setattr(mod, "skill_registry", MagicMock(reload=MagicMock(return_value=5)))
-        monkeypatch.setattr(mod, "mcp_manager", MagicMock(disconnect_all=AsyncMock()))
-        monkeypatch.setattr(mod, "connect_mcp_servers", AsyncMock())
+        monkeypatch.setattr(lifecycle_mod, "load_subsystems", AsyncMock())
         result = await mod.handle_command(
             "/reload",
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
+        lifecycle_mod.load_subsystems.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_mcp_server_cmd(self, monkeypatch):
@@ -1053,7 +993,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -1079,7 +1018,6 @@ class TestHandleCommand:
             state=_state(messages=[]),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -1105,7 +1043,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -1129,7 +1066,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -1145,7 +1081,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -1163,7 +1098,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -1182,7 +1116,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -1199,7 +1132,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -1219,7 +1151,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -1245,7 +1176,6 @@ class TestHandleCommand:
             state=_state(messages=msgs),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -1271,7 +1201,6 @@ class TestHandleCommand:
             state=_state(messages=msgs),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -1288,7 +1217,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -1307,7 +1235,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -1326,7 +1253,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -1341,7 +1267,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -1358,7 +1283,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -1382,7 +1306,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -1403,7 +1326,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -1421,7 +1343,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -1442,7 +1363,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -1464,7 +1384,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -1485,7 +1404,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -1507,7 +1425,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -1528,7 +1445,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -1549,7 +1465,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -1566,7 +1481,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -1583,7 +1497,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -1608,7 +1521,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -1630,7 +1542,6 @@ class TestHandleCommand:
             state=_state(),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result == "continue"
@@ -1649,7 +1560,6 @@ class TestHandleCommand:
             state=_state(messages=[]),
             session=_session(),
             console=_console(),
-            dazimd_files=[],
             print_welcome_fn=MagicMock(),
         )
         assert result is None

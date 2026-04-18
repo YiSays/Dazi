@@ -61,6 +61,14 @@ autonomous_teammate = AutonomousTeammate()
 # 8. Worktree manager (no deps)
 worktree_manager = WorktreeManager()
 
-# ── Mutable context (set by main.py) ──
+# ── Mutable context (set by main.py / repl_teams) ──
 active_team_name: str | None = None
 current_agent_name: str | None = None
+team_task_store: TaskStore | None = None
+
+
+def get_active_task_store() -> TaskStore:
+    """Return the task store for the current context (team or default)."""
+    if active_team_name is not None and team_task_store is not None:
+        return team_task_store
+    return task_store

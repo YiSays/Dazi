@@ -451,14 +451,22 @@ async def spawn_agent_func(
     initial_task: str = "",
 ) -> str:
     """Spawn an autonomous teammate that scans for and claims tasks."""
-    from dazi._singletons import autonomous_teammate
+    from dazi._singletons import autonomous_teammate, team_manager
     from dazi.config import DATA_DIR
+    from dazi.team import TeamMember
     from dazi.task_store import TaskStore
 
     TASKS_DIR = DATA_DIR / "tasks"
 
     config = AutonomousConfig()
     task_store = TaskStore(TASKS_DIR, list_id=team_name)
+
+    agent_id = f"{member_name}@{team_name}"
+    team_manager.add_member(team_name, TeamMember(
+        name=member_name,
+        agent_id=agent_id,
+        agent_type=agent_type,
+    ))
 
     task = autonomous_teammate.spawn_autonomous(
         team_name=team_name,

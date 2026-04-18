@@ -154,6 +154,18 @@ class BackgroundTaskManager:
         self.output_dir = output_dir
         self._tasks: dict[str, BackgroundTask] = {}
         self._monitor_tasks: dict[str, asyncio.Task] = {}
+        self._completion_event: asyncio.Event | None = None
+
+    @property
+    def completion_event(self) -> asyncio.Event:
+        """Lazy-initialized asyncio.Event — set when any task reaches terminal state.
+
+        Safe to call from within or outside an event loop because creation
+        is deferred until first access inside a running loop.
+        """
+        if self._completion_event is None:
+            self._completion_event = asyncio.Event()
+        return self._completion_event
 
     # ─────────────────────────────────────────────────────
     # TASK ID GENERATION
@@ -286,14 +298,19 @@ class BackgroundTaskManager:
 
         Returns tasks where status is terminal and notified=False.
         Sets notified=True on each returned task (marks as delivered).
+        Clears the completion event so the REPL loop can await the next one.
 
-        Called after each graph cycle in the REPL loop.
+        Called after each graph cycle in the REPL loop, or directly by
+        the REPL loop when the completion event fires during idle.
         """
         completed = []
         for task in self._tasks.values():
             if task.is_terminal and not task.notified:
                 task.notified = True
                 completed.append(task)
+        # Reset event so caller can await the next completion
+        if self._completion_event is not None:
+            self._completion_event.clear()
         return completed
 
     # ─────────────────────────────────────────────────────
@@ -435,6 +452,9 @@ class BackgroundTaskManager:
             # Clean up process reference
             task.process = None
             self._monitor_tasks.pop(task_id, None)
+            # Signal completion for anyone awaiting (e.g. REPL loop)
+            if task.is_terminal:
+                self.completion_event.set()
 
     # ─────────────────────────────────────────────────────
     # RESET — for testing only
@@ -459,6 +479,8 @@ class BackgroundTaskManager:
                     pass
 
         self._tasks.clear()
+        if self._completion_event is not None:
+            self._completion_event.clear()
 
 
 # ─────────────────────────────────────────────────────────
@@ -488,7 +510,8 @@ async def run_background(command: str, description: str = "") -> str:
 
 
 run_background_tool = StructuredTool.from_function(
-    func=run_background,
+    func=lambda **kwargs: "",
+    coroutine=run_background,
     name="run_background",
     description=(
         "Execute a shell command in the background. "
@@ -583,7 +606,8 @@ async def cancel_background(task_id: str) -> str:
 
 
 cancel_background_tool = StructuredTool.from_function(
-    func=cancel_background,
+    func=lambda **kwargs: "",
+    coroutine=cancel_background,
     name="cancel_background",
     description="Cancel a running background task. Sends SIGTERM, then SIGKILL if needed.",
     args_schema=CancelBackgroundInput,
